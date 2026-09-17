@@ -1,4 +1,4 @@
-import { getMic } from './audio'
+import { echoStrict, getMic } from './audio'
 
 /**
  * Voice-activity detection and segment capture.
@@ -215,7 +215,11 @@ export async function startVad(h: VadHandlers): Promise<Vad> {
       floor = Math.max(floor, 0.0015)
     }
 
-    threshold = floor * TRIGGER_OVER_FLOOR * (guard ? GUARD_BOOST : 1)
+    // Strict noise guard: while he speaks, nothing crosses. Barge-in by voice is
+    // the price; Escape still cuts him off.
+    threshold = guard && echoStrict()
+      ? Infinity
+      : floor * TRIGGER_OVER_FLOOR * (guard ? GUARD_BOOST : 1)
     const release = threshold * RELEASE_RATIO
     const now = performance.now()
 

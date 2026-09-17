@@ -191,6 +191,21 @@ the bridge (`/img` and `/media`, both SSRF-guarded), so hotlink-blocked news
 thumbnails still appear and the page never beacons your IP to a host the model
 chose.
 
+### Blades are tabs
+
+The big surfaces JARVIS opens (articles, images, galleries, videos, embeds) are
+blades, and every blade is also a numbered tab in a strip along the top of the
+screen. Blades stay open across turns until you close one; the twelve newest
+fit the strip and the oldest falls off.
+
+- Click a background tab to bring its blade forward; click the front tab to
+  tuck it away. A tucked blade keeps its page, scroll position and wherever you
+  dragged it.
+- Double-click a tab name to rename it. The cross closes it for good.
+- Say it instead: each turn opens with an `[Open tabs: …]` line the model can
+  see (never spoken, never in the transcript), and a `tabs` tool lets him show,
+  hide, close or rename one. *"Tuck away tab two"*, *"close the pricing one"*.
+
 ---
 
 ## Controls
@@ -201,6 +216,8 @@ chose.
 | **Space** | Talk without the wake word |
 | Just speak | Interrupt him mid-sentence (barge-in) |
 | **M** / **MIC ON** button | Mute or unmute the microphone for this session |
+| **NOISE STD / STRICT** button | How hard the mic works to keep JARVIS from hearing himself |
+| Tab strip | Click to show or tuck a blade, double-click to rename, ✕ to close |
 | **V** | Cycle the browser voice |
 | **Escape** | Stand down |
 | **D** | Live diagnostics panel |
@@ -212,6 +229,14 @@ right. Muted, JARVIS hears nothing, not even his name, and the meter reads
 MUTED. Muting while he is listening stands him down. The microphone stream stays
 open, so unmuting is instant and never asks for permission again. Mute lasts for
 the page session.
+
+**Noise guard.** The **NOISE STD / NOISE STRICT** button sits under the mute
+button. *Standard* is echo cancellation plus a raised trigger while he speaks,
+so a loud interruption still barges in. *Strict* asks the browser for voice
+isolation where it offers it, and nothing heard while he is speaking counts as
+you, so barge-in by voice is off and **Escape** is how you cut him off. Use
+strict when he keeps answering his own sentences through the speakers. The
+choice is saved across reloads.
 
 **The SYSTEMS rail.** The left rail lists every connected MCP server with a
 count. It starts expanded, scrolls once the list is taller than about 40% of

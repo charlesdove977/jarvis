@@ -9,6 +9,8 @@ let ctx: AudioContext | null = null
 let analyser: AnalyserNode | null = null
 let buf: Uint8Array | null = null
 
+let strict = false
+
 export async function getMic(): Promise<MediaStream> {
   if (stream) return stream
   stream = await navigator.mediaDevices.getUserMedia({
@@ -18,7 +20,38 @@ export async function getMic(): Promise<MediaStream> {
       autoGainControl: true,
     },
   })
+  applyIsolation()
   return stream
+}
+
+/**
+ * The noise guard.
+ *
+ * Strict asks the platform for voice isolation, the model-based filter that
+ * keeps a voice and drops everything else, including a voice coming out of the
+ * speakers. Not every browser offers it; where it is unknown the constraint is
+ * ignored and strict still does its other half, in vad.ts: nothing heard while
+ * JARVIS is speaking counts as the user.
+ */
+export function setEchoStrict(on: boolean): void {
+  strict = on
+  applyIsolation()
+}
+
+export function echoStrict(): boolean {
+  return strict
+}
+
+function applyIsolation(): void {
+  for (const track of stream?.getAudioTracks() ?? []) {
+    const supported = navigator.mediaDevices.getSupportedConstraints() as Record<string, boolean>
+    if (!supported.voiceIsolation) continue
+    void track
+      .applyConstraints({ ...track.getConstraints(), voiceIsolation: strict } as MediaTrackConstraints)
+      .catch(() => {
+        /* the device refused it; the VAD gate still applies */
+      })
+  }
 }
 
 /**

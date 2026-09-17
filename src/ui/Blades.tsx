@@ -242,8 +242,10 @@ function Card({
   depth,
   focused,
   expanded,
+  hidden,
   onFocus,
   onExpand,
+  onHide,
   onClose,
 }: {
   blade: Blade
@@ -251,8 +253,12 @@ function Card({
   depth: number
   focused: boolean
   expanded: boolean
+  /** Tucked into its tab. Kept mounted so the page, its scroll position and
+   *  wherever it was dragged to are all still there when it comes back. */
+  hidden: boolean
   onFocus: () => void
   onExpand: () => void
+  onHide: () => void
   onClose: () => void
 }) {
   /** Size the user has dragged this blade to, overriding the class preset. */
@@ -496,7 +502,7 @@ function Card({
       }}
       exit={{ opacity: 0, y: 18, filter: 'blur(8px)', transition: { duration: 0.28 } }}
       transition={{ type: 'spring', stiffness: 260, damping: 30 }}
-      style={{ zIndex: expanded ? 60 : 40 - depth }}
+      style={{ zIndex: expanded ? 60 : 40 - depth, display: hidden ? 'none' : undefined }}
     >
       <motion.section
         ref={shell}
@@ -545,6 +551,16 @@ function Card({
               className="bl-btn"
               onClick={(e) => {
                 e.stopPropagation()
+                onHide()
+              }}
+              title="Tuck into its tab"
+            >
+              ▁
+            </button>
+            <button
+              className="bl-btn"
+              onClick={(e) => {
+                e.stopPropagation()
                 onExpand()
               }}
               title={expanded ? 'Shrink (E)' : 'Full screen (E)'}
@@ -581,9 +597,11 @@ export function Blades() {
   const blades = useStore((s) => s.blades)
   const focusedBlade = useStore((s) => s.focusedBlade)
   const expandedBlade = useStore((s) => s.expandedBlade)
+  const hiddenBlades = useStore((s) => s.hiddenBlades)
   const focusBlade = useStore((s) => s.focusBlade)
   const expandBlade = useStore((s) => s.expandBlade)
   const closeBlade = useStore((s) => s.closeBlade)
+  const toggleBladeHidden = useStore((s) => s.toggleBladeHidden)
 
   /**
    * Newest first, then whichever the user pulled forward lifted to the front.
@@ -593,14 +611,14 @@ export function Blades() {
    * that" a meaningful thing to ask for.
    */
   const ordered = useMemo(() => {
-    const newestFirst = [...blades].reverse()
+    const newestFirst = [...blades].reverse().filter((b) => !hiddenBlades.includes(b.id))
     if (!focusedBlade) return newestFirst
     const hit = newestFirst.findIndex((b) => b.id === focusedBlade)
     if (hit <= 0) return newestFirst
     const copy = [...newestFirst]
     const [lifted] = copy.splice(hit, 1)
     return [lifted, ...copy]
-  }, [blades, focusedBlade])
+  }, [blades, focusedBlade, hiddenBlades])
 
   const front = ordered[0]
 
@@ -648,33 +666,131 @@ export function Blades() {
 
   return (
     <div className={`blades-stack${expandedBlade ? ' blades-stack-full' : ''}`}>
+      <BladeTabs front={expandedBlade ?? front?.id ?? null} />
       <AnimatePresence>
-        {ordered.map((blade, i) => {
+        {blades.map((blade) => {
           const expanded = expandedBlade === blade.id
-          // While one is expanded it is the only thing on screen; the rest are
-          // unmounted rather than hidden so their iframes stop loading.
-          if (expandedBlade && !expanded) return null
+          const depth = ordered.findIndex((b) => b.id === blade.id)
+          // Hidden rather than unmounted, both when tucked into a tab and while
+          // another blade is full screen: a tab that forgot its page, its scroll
+          // and its position every time it was put away would not be a tab.
+          const hidden = depth < 0 || (!!expandedBlade && !expanded)
           return (
             <Card
               key={blade.id}
               blade={blade}
-              depth={expanded ? 0 : i}
+              depth={expanded ? 0 : Math.max(0, depth)}
               focused={blade.id === front?.id}
               expanded={expanded}
+              hidden={hidden}
               onFocus={() => focusBlade(blade.id)}
               onExpand={() => expandBlade(expanded ? null : blade.id)}
+              onHide={() => toggleBladeHidden(blade.id, true)}
               onClose={() => closeBlade(blade.id)}
             />
           )
         })}
       </AnimatePresence>
 
-      {blades.length > 1 && !expandedBlade && (
+      {ordered.length > 1 && !expandedBlade && (
         <div className="bl-hint">
           <kbd>[</kbd> <kbd>]</kbd> cycle · <kbd>E</kbd> full · <kbd>X</kbd> close
         </div>
       )}
     </div>
+  )
+}
+
+/* -------------------------------------------------------------------- tabs */
+
+/**
+ * The tab strip.
+ *
+ * Every open blade has a tab, numbered in the order it opened, so it can be
+ * named out loud as well as clicked: "tab two", or whatever the tab is called.
+ * Click a background tab to bring it forward, click the front one to tuck it
+ * away, double-click the name to rename it, and the cross closes it for good.
+ */
+function BladeTabs({ front }: { front: string | null }) {
+  const blades = useStore((s) => s.blades)
+  const hiddenBlades = useStore((s) => s.hiddenBlades)
+  const expandedBlade = useStore((s) => s.expandedBlade)
+  const focusBlade = useStore((s) => s.focusBlade)
+  const expandBlade = useStore((s) => s.expandBlade)
+  const closeBlade = useStore((s) => s.closeBlade)
+  const toggleBladeHidden = useStore((s) => s.toggleBladeHidden)
+  const renameBlade = useStore((s) => s.renameBlade)
+  const [editing, setEditing] = useState<string | null>(null)
+
+  const select = (id: string) => {
+    const hidden = hiddenBlades.includes(id)
+    if (hidden) {
+      if (expandedBlade) expandBlade(null)
+      toggleBladeHidden(id, false)
+    } else if (id === front) {
+      toggleBladeHidden(id, true)
+    } else {
+      if (expandedBlade) expandBlade(null)
+      focusBlade(id)
+    }
+  }
+
+  return (
+    <nav className="bl-tabs" aria-label="Open blades">
+      {blades.map((b, i) => {
+        const hidden = hiddenBlades.includes(b.id)
+        const active = !hidden && b.id === front
+        return (
+          <div
+            key={b.id}
+            className={`bl-tab${active ? ' is-active' : ''}${hidden ? ' is-hidden' : ''}`}
+            onClick={() => editing !== b.id && select(b.id)}
+            title={`${b.title}: click to ${active ? 'tuck away' : 'show'}, double-click to rename`}
+          >
+            <span className="bl-tab-n">{i + 1}</span>
+            {editing === b.id ? (
+              <input
+                className="bl-tab-edit"
+                defaultValue={b.title}
+                autoFocus
+                maxLength={40}
+                onClick={(e) => e.stopPropagation()}
+                onFocus={(e) => e.currentTarget.select()}
+                onBlur={(e) => {
+                  renameBlade(b.id, e.currentTarget.value)
+                  setEditing(null)
+                }}
+                onKeyDown={(e) => {
+                  e.stopPropagation()
+                  if (e.key === 'Enter') e.currentTarget.blur()
+                  if (e.key === 'Escape') setEditing(null)
+                }}
+              />
+            ) : (
+              <span
+                className="bl-tab-name"
+                onDoubleClick={(e) => {
+                  e.stopPropagation()
+                  setEditing(b.id)
+                }}
+              >
+                {b.title}
+              </span>
+            )}
+            <button
+              className="bl-tab-x"
+              onClick={(e) => {
+                e.stopPropagation()
+                closeBlade(b.id)
+              }}
+              title="Close"
+            >
+              ✕
+            </button>
+          </div>
+        )
+      })}
+    </nav>
   )
 }
 

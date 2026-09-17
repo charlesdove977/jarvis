@@ -34,6 +34,8 @@ type Frame = {
   mode?: string
   seconds?: number
   when?: string
+  index?: number
+  title?: string
   servers?: Array<string | { name?: string }>
 }
 
@@ -81,6 +83,16 @@ export type CaptureResult = { data?: string; mimeType?: string; error?: string }
 let onCapture: ((req: CaptureRequest) => Promise<CaptureResult>) | null = null
 export function watchCapture(fn: (req: CaptureRequest) => Promise<CaptureResult>) {
   onCapture = fn
+}
+
+export type TabsHandler = (
+  op: 'show' | 'hide' | 'close' | 'rename',
+  index: number,
+  title?: string,
+) => void
+let onTabs: TabsHandler | null = null
+export function watchTabs(fn: TabsHandler) {
+  onTabs = fn
 }
 
 /** Blades arrive the same way panels do — pushed mid-turn, so the article is
@@ -181,6 +193,8 @@ function dispatch(ws: WebSocket) {
       onPanel?.(msg.panel)
     } else if (msg.type === 'blade' && msg.blade) {
       onBlade?.(msg.blade)
+    } else if (msg.type === 'tabs' && msg.op && typeof msg.index === 'number') {
+      onTabs?.(msg.op as Parameters<TabsHandler>[0], msg.index, msg.title)
     } else if (msg.type === 'capture' && msg.id) {
       const id = msg.id
       const reply = (payload: Record<string, unknown>) => {

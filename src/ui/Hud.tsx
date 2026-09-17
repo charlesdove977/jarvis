@@ -161,6 +161,8 @@ export function Hud() {
   const ui = useStore((s) => s.ui)
   const muted = useStore((s) => s.muted)
   const setMuted = useStore((s) => s.setMuted)
+  const echoGuard = useStore((s) => s.echoGuard)
+  const setEchoGuard = useStore((s) => s.setEchoGuard)
   // Open on first load; the user can fold it away once it gets long.
   const [systemsOpen, setSystemsOpen] = useState(true)
   const systemCount = connected.length + 1 // + Web
@@ -261,6 +263,21 @@ export function Hud() {
           >
             <span className="mute-icon" />
             {muted ? 'MIC OFF' : 'MIC ON'}
+          </button>
+        )}
+        {phase !== 'offline' && (
+          <button
+            className={`mute-btn ${echoGuard === 'strict' ? 'is-strict' : ''}`}
+            onClick={() => setEchoGuard(echoGuard === 'strict' ? 'standard' : 'strict')}
+            aria-pressed={echoGuard === 'strict'}
+            title={
+              echoGuard === 'strict'
+                ? 'Noise guard STRICT: voice isolation on, and nothing is heard while JARVIS speaks. Press Escape to cut him off.'
+                : 'Noise guard STANDARD: echo cancellation and noise suppression; a loud interruption still cuts him off.'
+            }
+          >
+            <span className="mute-icon" />
+            {echoGuard === 'strict' ? 'NOISE STRICT' : 'NOISE STD'}
           </button>
         )}
       </aside>

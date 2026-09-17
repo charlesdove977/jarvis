@@ -52,6 +52,21 @@ export type Blade = {
   hold: 'turn' | 'sticky'
 }
 
+/** How hard the microphone works to keep JARVIS from hearing himself.
+ *  standard = echo cancellation plus a raised trigger while he speaks, so a
+ *  loud interruption still barges in. strict = the platform's voice isolation
+ *  where the browser offers it, and nothing he hears while speaking counts. */
+export type EchoGuard = 'standard' | 'strict'
+
+const ECHO_KEY = 'jarvis.echoGuard'
+const savedEcho = (): EchoGuard => {
+  try {
+    return localStorage.getItem(ECHO_KEY) === 'strict' ? 'strict' : 'standard'
+  } catch {
+    return 'standard'
+  }
+}
+
 export type Turn = {
   id: string
   role: 'user' | 'jarvis'
@@ -234,6 +249,8 @@ type State = {
    *  for permission on unmute would be worse); its tracks are disabled and the
    *  voice loop is held deaf. */
   muted: boolean
+  /** Echo and noise handling for the microphone. Persisted across reloads. */
+  echoGuard: EchoGuard
   /** Set when the user chose "Skip boot up": the boot overlay never shows and
    *  the live interface comes straight up. */
   skipBoot: boolean
@@ -245,6 +262,8 @@ type State = {
   focusedBlade: string | null
   /** A blade thrown to full screen, or null. */
   expandedBlade: string | null
+  /** Blades tucked into their tab: still open, not on screen. */
+  hiddenBlades: string[]
   /** JARVIS's control over his own appearance. UI_DEFAULTS == the stock look. */
   ui: UiState
 
@@ -253,6 +272,7 @@ type State = {
   setLooking: (why: string | null) => void
   setBootNote: (n: string) => void
   setMuted: (m: boolean) => void
+  setEchoGuard: (g: EchoGuard) => void
   setSkipBoot: (skip: boolean) => void
   pushPanel: (p: Panel) => void
   clearPanels: () => void
@@ -261,6 +281,9 @@ type State = {
   clearBlades: () => void
   focusBlade: (id: string | null) => void
   expandBlade: (id: string | null) => void
+  /** Show or hide a blade without closing it. */
+  toggleBladeHidden: (id: string, hidden?: boolean) => void
+  renameBlade: (id: string, title: string) => void
   setPhase: (p: Phase) => void
   setLevel: (l: number) => void
   setCaption: (c: string) => void
@@ -294,13 +317,23 @@ export const useStore = create<State>((set) => ({
   blades: [],
   focusedBlade: null,
   expandedBlade: null,
+  hiddenBlades: [],
   bootNote: '',
   muted: false,
+  echoGuard: savedEcho(),
   skipBoot: false,
   ui: defaultUi(),
 
   setVoice: (voice) => set({ voice }),
   setMuted: (muted) => set({ muted }),
+  setEchoGuard: (echoGuard) => {
+    try {
+      localStorage.setItem(ECHO_KEY, echoGuard)
+    } catch {
+      /* private mode: the setting lasts the session */
+    }
+    set({ echoGuard })
+  },
   setSkipBoot: (skipBoot) => set({ skipBoot }),
   setGestures: (gestures) => set({ gestures }),
   setLooking: (looking) => set({ looking }),
@@ -326,25 +359,50 @@ export const useStore = create<State>((set) => ({
     set((s) => ({ panels: s.panels.filter((p) => p.hold === 'sticky') })),
 
   /**
-   * Six is the ceiling, and it is about the stack reading as a stack: past
-   * about six the ones at the back are a millimetre of edge each and the depth
-   * stops meaning anything. The oldest falls off, which is also the one the
-   * user has had longest to look at.
+   * Blades are tabs now, so they stay open until the user closes them, and the
+   * ceiling is about the tab strip rather than the stack: twelve still fit a
+   * readable name each. The oldest falls off, which is also the one the user
+   * has had longest to look at.
    */
   pushBlade: (blade) =>
     set((s) => {
-      const next = [...s.blades.filter((b) => b.id !== blade.id), blade].slice(-6)
+      const next = [...s.blades.filter((b) => b.id !== blade.id), blade].slice(-12)
+      const alive = new Set(next.map((b) => b.id))
       // A new blade comes to the front. Leaving the old focus in place would
       // open something the user asked for and then hide it behind what they
       // were looking at before.
-      return { blades: next, focusedBlade: blade.id }
+      return {
+        blades: next,
+        focusedBlade: blade.id,
+        hiddenBlades: s.hiddenBlades.filter((id) => id !== blade.id && alive.has(id)),
+      }
     }),
   closeBlade: (id) =>
     set((s) => ({
       blades: s.blades.filter((b) => b.id !== id),
       focusedBlade: s.focusedBlade === id ? null : s.focusedBlade,
       expandedBlade: s.expandedBlade === id ? null : s.expandedBlade,
+      hiddenBlades: s.hiddenBlades.filter((h) => h !== id),
     })),
+  toggleBladeHidden: (id, hidden) =>
+    set((s) => {
+      const isHidden = s.hiddenBlades.includes(id)
+      const hide = hidden ?? !isHidden
+      if (hide === isHidden) return {}
+      return hide
+        ? {
+            hiddenBlades: [...s.hiddenBlades, id],
+            focusedBlade: s.focusedBlade === id ? null : s.focusedBlade,
+            expandedBlade: s.expandedBlade === id ? null : s.expandedBlade,
+          }
+        : { hiddenBlades: s.hiddenBlades.filter((h) => h !== id), focusedBlade: id }
+    }),
+  renameBlade: (id, title) =>
+    set((s) => {
+      const name = title.trim().slice(0, 40)
+      if (!name) return {}
+      return { blades: s.blades.map((b) => (b.id === id ? { ...b, title: name } : b)) }
+    }),
   // Same contract as panels: 'turn' blades go when the user speaks again,
   // 'sticky' ones stay until something replaces them.
   clearBlades: () =>
@@ -421,7 +479,14 @@ export const useStore = create<State>((set) => ({
       // screen, and leaving a full-height article standing while the cards
       // around it vanish is the interface arguing with the instruction.
       const blades = what === 'transcript' ? s.blades : []
-      const cleared = { panels, turns, blades, focusedBlade: null, expandedBlade: null }
+      const cleared = {
+        panels,
+        turns,
+        blades,
+        focusedBlade: null,
+        expandedBlade: null,
+        hiddenBlades: what === 'transcript' ? s.hiddenBlades : [],
+      }
       return what === 'all'
         ? { ...cleared, caption: '', activeTool: null }
         : cleared

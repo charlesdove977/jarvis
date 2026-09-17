@@ -22,6 +22,7 @@ import {
   watchServers,
   watchPanels,
   watchBlades,
+  watchTabs,
   watchCapture,
   watchUi,
   watchConnection,
@@ -29,9 +30,32 @@ import {
   usingBridge,
   type Msg,
 } from './lib/brain'
-import { startAnalyser, micLevel, setMicMuted } from './lib/audio'
+import { startAnalyser, micLevel, setMicMuted, setEchoStrict } from './lib/audio'
 import { probeCapabilities } from './lib/capabilities'
 import { env } from './config'
+
+/**
+ * What is open on the tab strip, riding in front of what the user said.
+ *
+ * The model cannot see the screen, so "look at the pricing tab" means nothing
+ * to it unless it is told which tabs exist. Prepended to the prompt only, never
+ * to the transcript or the history, so it costs one line per turn and the log
+ * still reads as what was said.
+ */
+function withTabs(said: string): string {
+  const { blades, hiddenBlades, focusedBlade, expandedBlade } = useStore.getState()
+  if (!blades.length) return said
+  const visible = [...blades].reverse().filter((b) => !hiddenBlades.includes(b.id))
+  const front = expandedBlade ?? focusedBlade ?? visible[0]?.id
+  const list = blades
+    .map((b, i) => {
+      const where = hiddenBlades.includes(b.id) ? 'tucked away' : b.id === front ? 'in front' : 'open'
+      const src = b.url ? `, ${b.url}` : ''
+      return `${i + 1} "${b.title}" (${b.kind}${src}, ${where})`
+    })
+    .join('; ')
+  return `[Open tabs: ${list}]\n${said}`
+}
 
 /**
  * The conversation.
@@ -129,10 +153,9 @@ export default function App() {
 
     clearIdle()
     const s = store.getState()
-    // Last turn's panels and blades go now, before the new answer starts
-    // putting its own up. Anything the model marked sticky survives.
+    // Last turn's panels go now, before the new answer starts putting its own
+    // up. Blades do not: they are tabs, and stay open until the user closes one.
     s.clearPanels()
-    s.clearBlades()
     s.setCaption('')
     s.pushTurn({ id: newId(), role: 'user', text: said })
     s.setPhase('thinking')
@@ -147,7 +170,7 @@ export default function App() {
     let filled = false
 
     try {
-      const { text } = await ask(said, history.current, {
+      const { text } = await ask(withTabs(said), history.current, {
         onText: (delta) => {
           if (stale()) return
           if (!started) {
@@ -370,6 +393,18 @@ export default function App() {
     watchServers((servers) => store.getState().setConnected(servers))
     watchPanels((panel) => store.getState().pushPanel(panel))
     watchBlades((blade) => store.getState().pushBlade(blade))
+    watchTabs((op, index, title) => {
+      const st = store.getState()
+      const blade = st.blades[index - 1]
+      if (!blade) return
+      if (op === 'show') {
+        if (st.expandedBlade && st.expandedBlade !== blade.id) st.expandBlade(null)
+        st.toggleBladeHidden(blade.id, false)
+        st.focusBlade(blade.id)
+      } else if (op === 'hide') st.toggleBladeHidden(blade.id, true)
+      else if (op === 'close') st.closeBlade(blade.id)
+      else if (op === 'rename' && title) st.renameBlade(blade.id, title)
+    })
 
     /**
      * JARVIS asking to see something.
@@ -582,6 +617,11 @@ export default function App() {
     if (p === 'waking' || p === 'listening') goDormant()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [muted])
+
+  const echoGuard = useStore((s) => s.echoGuard)
+  useEffect(() => {
+    setEchoStrict(echoGuard === 'strict')
+  }, [echoGuard])
 
   // -- level pump + keys ----------------------------------------------------
 

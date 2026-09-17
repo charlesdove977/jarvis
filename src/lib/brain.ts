@@ -44,6 +44,11 @@ export function watchServers(fn: (servers: string[]) => void): void {
   if (usingBridge) bridge.watchServers(fn)
 }
 
+/** Tab commands from the `tabs` tool: show, hide, close or rename by number. */
+export function watchTabs(fn: bridge.TabsHandler): void {
+  if (usingBridge) bridge.watchTabs(fn)
+}
+
 /** HUD panels are pushed mid-turn by the `display` tool, not returned by ask(). */
 export function watchPanels(fn: (panel: Panel) => void): void {
   if (usingBridge) bridge.watchPanels(fn)

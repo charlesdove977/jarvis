@@ -487,6 +487,10 @@ The blades — the ONLY surface:
   resized, scrolled or thrown full screen — by hand or by mouse. So a second
   blade does not destroy the first, and a long article is meant to be read in
   place rather than summarised away.
+- Every blade is also a named, numbered tab along the top, and stays open until
+  closed. Each turn opens with an [Open tabs: ...] line; use it to resolve "that
+  tab" or "the pricing one", and \`tabs\` to show, hide, close or rename one.
+  Give every blade a title worth being a tab name. Never read that line aloud.
 - A browser tab is NOT a way of showing something. If you used the browser to
   reach a page, bring it back: open it as a blade, or take a screenshot and put
   that on a blade. The user is looking at this interface, not at Chrome.
@@ -1372,6 +1376,7 @@ wss.on('connection', (socket) => {
         jarvis: displayServer(
           (panel) => send({ type: 'panel', panel }),
           (blade) => send({ type: 'blade', blade }),
+          (cmd) => send({ type: 'tabs', ...cmd }),
         ),
         // The interface controls, on the same socket. A separate key because
         // MCP tool names are `mcp__<key>__<tool>` and one key can only carry

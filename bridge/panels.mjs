@@ -294,8 +294,20 @@ const bladeSchema = {
     .enum(['turn', 'sticky'])
     .optional()
     .catch(undefined)
-    .describe('turn = closes when the user next speaks. sticky = stays until replaced.'),
+    .describe('Ignored: every blade is now a tab and stays open until closed.'),
 }
+
+const TABS_DESCRIPTION = `Work the tab strip at the top of the screen.
+
+Every blade is a tab, numbered in the order it opened, and stays open until it
+is closed. Each turn begins with an [Open tabs: ...] line listing them with
+their number, name, source and whether each is in front, open or tucked away.
+That line is how you know what the user means by "that tab", "the pricing one"
+or "tab three" — match the name or the number, and when they ask about what is
+on a tab, the source listed there is what to read.
+
+Use this when the user asks to bring a tab back, put one away, close one, or
+call one something. Opening something new is still \`blade\`.`
 
 const PROBE_DESCRIPTION = `Find out what is actually at a URL before showing it.
 
@@ -316,8 +328,9 @@ argument. You know those things. Overrule it whenever you have reason to.`
 /**
  * @param {(panel: object) => void} emit - pushes the panel to the browser
  * @param {(blade: object) => void} emitBlade - pushes a blade to the browser
+ * @param {(cmd: object) => void} emitTabs - shows, hides, closes or renames a tab
  */
-export function displayServer(emit, emitBlade) {
+export function displayServer(emit, emitBlade, emitTabs) {
   return createSdkMcpServer({
     name: 'jarvis',
     version: '1.0.0',
@@ -412,6 +425,30 @@ export function displayServer(emit, emitBlade) {
         emitBlade(blade)
         return { content: [{ type: 'text', text: `Open on the blades as "${blade.title}".` }] }
       }),
+
+      tool(
+        'tabs',
+        TABS_DESCRIPTION,
+        {
+          action: z.enum(['show', 'hide', 'close', 'rename']).describe(
+            'show = bring the tab forward. hide = tuck it away, still open. ' +
+              'close = gone for good. rename = give it a new name.',
+          ),
+          tab: z.number().int().min(1).describe('The tab number from the [Open tabs: ...] line.'),
+          title: z
+            .string()
+            .optional()
+            .catch(undefined)
+            .describe('The new name, for action "rename". Two to four words.'),
+        },
+        async (args) => {
+          if (args.action === 'rename' && !String(args.title ?? '').trim()) {
+            return refuse('Not renamed: action "rename" needs a `title`.')
+          }
+          emitTabs({ op: args.action, index: args.tab, title: args.title })
+          return { content: [{ type: 'text', text: `Tab ${args.tab}: ${args.action}.` }] }
+        },
+      ),
 
       tool(
         'probe_url',

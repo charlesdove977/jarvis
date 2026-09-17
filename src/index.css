@@ -232,6 +232,10 @@ body::after {
 }
 .mute-btn.is-muted { color: #ff4d5e; border-color: rgba(255, 77, 94, 0.6); }
 .mute-btn.is-muted .mute-icon { background: #ff4d5e; box-shadow: 0 0 8px #ff4d5e; }
+/* The echo guard sits under the mic button and borrows its shape. Amber when
+   strict, because strict trades away talking over him for a quieter room. */
+.mute-btn.is-strict { color: #f0a93c; border-color: rgba(240, 169, 60, 0.6); }
+.mute-btn.is-strict .mute-icon { background: #f0a93c; box-shadow: 0 0 8px #f0a93c; }
 
 .tick {
   width: 5px;
@@ -1865,6 +1869,85 @@ kbd {
 
 /* A resized blade is sized inline, so the presets must not fight it. */
 .bl[style*="width"] { max-width: none; max-height: none }
+
+/* The tab strip. Pinned to the very top edge, above the brand line and above an
+   expanded blade, so every open blade stays one click away whatever is on
+   screen. Scrolls sideways rather than wrapping once there are a lot of them. */
+.bl-tabs {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 70;
+  display: flex;
+  gap: 4px;
+  max-width: min(72vw, 1100px);
+  overflow-x: auto;
+  scrollbar-width: none;
+  pointer-events: auto;
+}
+.bl-tabs::-webkit-scrollbar { display: none }
+
+.bl-tab {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 220px;
+  padding: 5px 6px 5px 9px;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--accent) 70%, white);
+  background: color-mix(in srgb, var(--accent) 6%, rgba(2, 8, 12, 0.88));
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+  user-select: none;
+  clip-path: polygon(6px 0, 100% 0, 100% 100%, 0 100%, 0 6px);
+  transition: background 160ms ease, border-color 160ms ease, opacity 160ms ease;
+}
+.bl-tab:hover { background: color-mix(in srgb, var(--accent) 16%, rgba(2, 8, 12, 0.88)) }
+.bl-tab.is-active {
+  color: color-mix(in srgb, var(--accent) 95%, white);
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: 0 0 18px -6px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.bl-tab.is-hidden { opacity: 0.55 }
+
+.bl-tab-n {
+  font-size: 8px;
+  opacity: 0.55;
+}
+.bl-tab-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.bl-tab-edit {
+  width: 130px;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  padding: 1px 4px;
+  outline: none;
+}
+.bl-tab-x {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 9px;
+  line-height: 1;
+  padding: 2px 4px;
+  opacity: 0.5;
+  cursor: pointer;
+}
+.bl-tab-x:hover { opacity: 1; color: #ff4d5e }
 
 /* ------------------------------------------------------------------- hands */
 /*
