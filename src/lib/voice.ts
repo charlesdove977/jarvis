@@ -213,6 +213,14 @@ function makeAssembler(h: {
   return {
     feed(text, active) {
       if (!text.trim()) return
+      // The same words arriving twice, which the browser engine does whenever
+      // a phrase it delivered as interim is finalised a beat later. Holding
+      // both would send "what's the weather what's the weather".
+      const again = norm(text)
+      if (again && norm(held).endsWith(again)) {
+        h.partial(held)
+        return
+      }
       held = `${held} ${text}`.replace(/\s+/g, ' ').trim()
       if (!firstAt) firstAt = Date.now()
       // The caption shows the whole thought as it assembles, not just the
@@ -617,6 +625,11 @@ function startBrowserVoice(h: VoiceHandlers): Voice {
   let lastWake = 0
   let lastAlive = Date.now()
   let silenceTimer: ReturnType<typeof setTimeout> | null = null
+  /** What the last emit sent, normalised, and when. Chrome finalises a phrase
+   *  after our silence window has already fired on its interim text, so the
+   *  final copy of the same words has to be recognised and dropped. */
+  let lastEmitted = ''
+  let lastEmittedAt = 0
 
   /** Same assembly rules as the premium path — a pause is not a full stop. */
   const assemble = makeAssembler({
@@ -651,6 +664,8 @@ function startBrowserVoice(h: VoiceHandlers): Voice {
     const mode = h.mode()
     reset()
     if (!text || mode === 'deaf') return
+    lastEmitted = norm(text)
+    lastEmittedAt = Date.now()
     if (isEcho(text, speakingNow())) {
       drop('echo of his own voice')
       return
@@ -680,7 +695,7 @@ function startBrowserVoice(h: VoiceHandlers): Voice {
     clearSilence()
     // Endpoint on a short quiet gap; the ElevenLabs path tunes this more
     // finely, but a fixed window is plenty for the fallback.
-    silenceTimer = setTimeout(emit, 900)
+    silenceTimer = setTimeout(emit, 700)
   }
 
   const onResult = (e: any) => {
@@ -697,6 +712,14 @@ function startBrowserVoice(h: VoiceHandlers): Voice {
       const chunk = e.results[i][0].transcript as string
       if (e.results[i].isFinal) fresh += chunk
       else interim += chunk
+    }
+    // The final copy of words already sent from their interim form. Within a
+    // few seconds of an emit, anything that is a tail of it is that copy.
+    if (Date.now() - lastEmittedAt < 4000 && lastEmitted) {
+      const f = norm(fresh)
+      if (f && lastEmitted.endsWith(f)) fresh = ''
+      const i = norm(interim)
+      if (i && lastEmitted.endsWith(i)) interim = ''
     }
     const heard = `${settled}${fresh} ${interim}`.replace(/\s+/g, ' ').trim()
     if (!heard) return
