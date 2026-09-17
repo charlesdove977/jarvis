@@ -122,15 +122,19 @@ function embedUrl(raw: string): string | null {
  * model are not, because a label held up to the lens has to arrive the right
  * way round.
  */
-const CameraView = memo(function CameraView() {
+const CameraView = memo(function CameraView({ blade }: { blade: Blade }) {
   const el = useRef<HTMLVideoElement>(null)
   const [failed, failed_] = useState<string | null>(null)
+  const screen = blade.source === 'screen'
+  const closeBlade = useStore((s) => s.closeBlade)
 
   useEffect(() => {
     let held = false
     let gone = false
-    void camera
-      .holdCamera()
+    // Chrome's "Stop sharing" bar ends the share outside this page. Close the
+    // blade with it rather than leave a frozen frame that looks live.
+    const off = screen ? camera.onShareEnded(() => closeBlade(blade.id)) : () => {}
+    void (screen ? camera.holdScreen() : camera.holdCamera())
       .then((source) => {
         if (gone) {
           camera.releaseCamera()
@@ -143,22 +147,34 @@ const CameraView = memo(function CameraView() {
       .catch((err: DOMException) =>
         failed_(
           err?.name === 'NotAllowedError'
-            ? 'Camera access is not permitted.'
-            : `The camera could not be opened: ${err?.message ?? err}`,
+            ? screen
+              ? 'Screen sharing was cancelled.'
+              : 'Camera access is not permitted.'
+            : `The ${screen ? 'screen' : 'camera'} could not be opened: ${err?.message ?? err}`,
         ),
       )
     return () => {
       gone = true
+      off()
       if (held) camera.releaseCamera()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   if (failed) return <p className="bl-note">{failed}</p>
-  return <video ref={el} className="bl-camera" autoPlay playsInline muted />
+  return (
+    <video
+      ref={el}
+      className={screen ? 'bl-camera bl-screen' : 'bl-camera'}
+      autoPlay
+      playsInline
+      muted
+    />
+  )
 })
 
 const Body = memo(function Body({ blade }: { blade: Blade }) {
-  if (blade.kind === 'camera') return <CameraView />
+  if (blade.kind === 'camera') return <CameraView blade={blade} />
 
   if (blade.kind === 'article' && blade.url) {
     return (

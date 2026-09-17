@@ -28,9 +28,10 @@ export async function ask(
   prompt: string,
   history: Msg[],
   handlers: AskHandlers,
+  image?: { data: string; mimeType: string } | null,
 ): Promise<{ text: string; tools: string[] }> {
   return usingBridge
-    ? bridge.ask(prompt, handlers)
+    ? bridge.ask(prompt, handlers, image)
     : direct.ask([...history, { role: 'user', content: prompt }], handlers)
 }
 

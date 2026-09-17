@@ -36,6 +36,11 @@ const CELL_H = 240
 
 let stream: MediaStream | null = null
 let video: HTMLVideoElement | null = null
+/** What the live stream is: the webcam, or a shared screen, window or tab. */
+let source: 'camera' | 'screen' = 'camera'
+/** Told when the user ends a share from Chrome's own bar, so the blade that
+ *  opened it can close itself instead of showing a frozen frame. */
+const endedListeners = new Set<() => void>()
 /** How many things currently need the camera. It closes at zero, not before. */
 let holders = 0
 
@@ -61,14 +66,46 @@ if (typeof window !== 'undefined') {
  * reasons that have nothing to do with it.
  */
 export async function holdCamera(): Promise<HTMLVideoElement> {
+  return hold('camera')
+}
+
+/**
+ * Share the screen instead. Chrome's own picker offers a tab, a window or
+ * the whole screen, which is where "share the Zoom window" gets answered.
+ * While a share is live it is what every look, watch and per-turn frame sees;
+ * the webcam is not opened alongside it.
+ */
+export async function holdScreen(): Promise<HTMLVideoElement> {
+  return hold('screen')
+}
+
+export const screenLive = () => source === 'screen' && Boolean(video && stream)
+
+export function onShareEnded(fn: () => void): () => void {
+  endedListeners.add(fn)
+  return () => endedListeners.delete(fn)
+}
+
+async function hold(want: 'camera' | 'screen'): Promise<HTMLVideoElement> {
   holders++
   diag.holders = holders
-  if (video && stream) return video
+  // A live share answers a request for the camera too: "look at this" while
+  // sharing means the screen. A live camera does not answer a request for the
+  // screen; that swaps the source.
+  if (video && stream && (source === want || source === 'screen')) return video
+  if (video && stream) tearDown()
 
   try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: 1280, height: 720, facingMode: 'user' },
-    })
+    stream =
+      want === 'screen'
+        ? await navigator.mediaDevices.getDisplayMedia({
+            video: { frameRate: 5 },
+            audio: false,
+          })
+        : await navigator.mediaDevices.getUserMedia({
+            video: { width: 1280, height: 720, facingMode: 'user' },
+          })
+    source = want
     const el = document.createElement('video')
     el.autoplay = true
     el.playsInline = true
@@ -78,6 +115,15 @@ export async function holdCamera(): Promise<HTMLVideoElement> {
     video = el
     diag.open = true
     diag.lastError = ''
+    if (want === 'screen') {
+      // "Stop sharing" on Chrome's bar ends the track with no other signal.
+      stream.getVideoTracks()[0]?.addEventListener('ended', () => {
+        holders = 0
+        diag.holders = 0
+        tearDown()
+        endedListeners.forEach((fn) => fn())
+      })
+    }
     return el
   } catch (err) {
     // The hold is given back on failure, or the count drifts up for ever and
@@ -94,6 +140,10 @@ export function releaseCamera(): void {
   holders = Math.max(0, holders - 1)
   diag.holders = holders
   if (holders > 0) return
+  tearDown()
+}
+
+function tearDown(): void {
   stopBuffer()
   if (video) {
     video.pause()
@@ -105,6 +155,7 @@ export function releaseCamera(): void {
   // every other claim this interface makes about its camera.
   stream?.getTracks().forEach((t) => t.stop())
   stream = null
+  source = 'camera'
   diag.open = false
 }
 
@@ -144,6 +195,21 @@ export function grabFrame(): { data: string; mimeType: string } {
     throw new Error('could not read the camera frame')
   }
   return toJpeg(canvas)
+}
+
+/**
+ * The frame that rides with each spoken turn while the screen is shared, so
+ * "what do you think of this" needs no tool call. Kept small: the model reads
+ * a 1280-wide screenshot fine, and a full 4K frame per turn is mostly cost.
+ */
+export function frameForTurn(): { data: string; mimeType: string } | null {
+  if (!screenLive() || !video?.videoWidth) return null
+  const scale = Math.min(1, 1280 / video.videoWidth)
+  const canvas = document.createElement('canvas')
+  if (!drawTo(canvas, Math.round(video.videoWidth * scale), Math.round(video.videoHeight * scale))) {
+    return null
+  }
+  return toJpeg(canvas, 0.6)
 }
 
 /* -------------------------------------------------------------------- buffer */

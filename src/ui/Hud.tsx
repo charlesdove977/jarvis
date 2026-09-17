@@ -162,6 +162,28 @@ export function Hud({ onStop }: { onStop: () => void }) {
   const muted = useStore((s) => s.muted)
   const setMuted = useStore((s) => s.setMuted)
   const queue = useStore((s) => s.queue)
+  const blades = useStore((s) => s.blades)
+  const pushBlade = useStore((s) => s.pushBlade)
+  const focusBlade = useStore((s) => s.focusBlade)
+  const toggleBladeHidden = useStore((s) => s.toggleBladeHidden)
+  /** Open the webcam or a screen share as a sticky blade, or bring the one
+   *  already open forward. */
+  const openEye = (source: 'camera' | 'screen') => {
+    const id = `eye-${source}`
+    if (blades.some((b) => b.id === id)) {
+      toggleBladeHidden(id, false)
+      focusBlade(id)
+      return
+    }
+    pushBlade({
+      id,
+      kind: 'camera',
+      source,
+      title: source === 'screen' ? 'Screen share' : 'Camera',
+      size: 'tall',
+      hold: 'sticky',
+    })
+  }
   const removeQueued = useStore((s) => s.removeQueued)
   const echoGuard = useStore((s) => s.echoGuard)
   const setEchoGuard = useStore((s) => s.setEchoGuard)
@@ -249,6 +271,20 @@ export function Hud({ onStop }: { onStop: () => void }) {
                 <span className="tick" />
                 Web
               </div>
+            </div>
+          )}
+          {phase !== 'offline' && phase !== 'boot' && (
+            <div className="rail-actions">
+              <button className="rail-btn" onClick={() => openEye('camera')} title="Open the camera">
+                CAMERA
+              </button>
+              <button
+                className="rail-btn"
+                onClick={() => openEye('screen')}
+                title="Share a tab, a window or the whole screen. He sees it with every message while it is shared."
+              >
+                SCREEN
+              </button>
             </div>
           )}
         </aside>

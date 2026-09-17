@@ -40,6 +40,8 @@ export type Blade = {
   id: string
   title: string
   kind: 'article' | 'image' | 'gallery' | 'video' | 'embed' | 'markup' | 'camera'
+  /** camera only: the webcam, or a shared screen / window / tab. */
+  source?: 'camera' | 'screen'
   /** article / image / video / embed. */
   url?: string
   /** gallery. */

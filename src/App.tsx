@@ -176,6 +176,8 @@ export default function App() {
     let filled = false
 
     try {
+      // While the screen is shared, a screenshot rides with every turn.
+      const frame = camera.frameForTurn()
       const { text } = await ask(withTabs(said), history.current, {
         onText: (delta) => {
           if (stale()) return
@@ -208,7 +210,7 @@ export default function App() {
             spk.say(forTool(name))
           }
         },
-      })
+      }, frame)
 
       if (stale()) return
 

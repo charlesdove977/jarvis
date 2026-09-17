@@ -555,6 +555,10 @@ Your eyes:
   so and offer to open it.
 - Opening the camera as a blade is how they see what you see. Do it when they
   ask for the camera, and when you are about to watch them do something.
+- Screen share: the user starts it themselves with the SCREEN button (a tab, a
+  window or the whole screen). While it is live a screenshot arrives with every
+  message and \`look\` and \`watch\` see the screen instead of the webcam. Refer
+  to what is on it directly; never ask them to describe their own screen.
 - Never take a picture they did not ask for. The camera light comes on and they
   will see it. Curiosity is not a reason.
 - Describe a watch as a sequence — what changed between the frames — not as a
@@ -1232,9 +1236,21 @@ wss.on('connection', (socket) => {
           deliver = resolve
         }))
       if (closed || text == null) return
+      // A turn with a screenshot attached is sent as content blocks, image
+      // first, so the words read as being about the picture.
+      const content =
+        typeof text === 'string'
+          ? text
+          : [
+              {
+                type: 'image',
+                source: { type: 'base64', media_type: text.image.mimeType, data: text.image.data },
+              },
+              { type: 'text', text: `[The user is sharing their screen; this is it right now.]\n${text.text}` },
+            ]
       yield {
         type: 'user',
-        message: { role: 'user', content: text },
+        message: { role: 'user', content },
         parent_tool_use_id: null,
       }
     }
@@ -1606,7 +1622,13 @@ wss.on('connection', (socket) => {
        * Waiting costs nothing when nothing is interrupting — the chain is an
        * already-resolved promise — and removes the cross-talk when there is.
        */
-      const text = msg.text
+      // A screenshot rides along while the user shares their screen. Capped
+      // so a runaway frame cannot balloon a turn.
+      const image =
+        msg.image && typeof msg.image.data === 'string' && msg.image.data.length < 4_000_000
+          ? { data: msg.image.data, mimeType: String(msg.image.mimeType || 'image/jpeg') }
+          : null
+      const text = image ? { text: msg.text, image } : msg.text
       const id = typeof msg.id === 'string' ? msg.id : null
       void settling.then(() => {
         answering = id

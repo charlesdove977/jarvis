@@ -75,8 +75,9 @@ export function visionServer(ask) {
     name: 'jarvis_eyes',
     version: '1.0.0',
     instructions:
-      "The camera on the user's machine, pointed at them. Use it when they ask " +
-      'you to look at something. It is not a sensor to poll; it is an act.',
+      "The camera on the user's machine, pointed at them, or their shared screen " +
+      'while a share is live. Use it when they ask you to look at something. ' +
+      'It is not a sensor to poll; it is an act.',
     // Behind tool search, "look at me" would find nothing and become an apology.
     alwaysLoad: true,
     tools: [

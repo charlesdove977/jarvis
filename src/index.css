@@ -204,6 +204,26 @@ body::after {
   background: color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
+.rail-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+.rail-btn {
+  pointer-events: auto;
+  padding: 5px 9px;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  color: inherit;
+  font-family: inherit;
+  font-size: 8px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  cursor: pointer;
+  clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
+}
+.rail-btn:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+
 /* Mute: same angular cyan chrome as the rest of the HUD. */
 .mute-btn {
   pointer-events: auto;
@@ -2160,4 +2180,9 @@ kbd {
   object-fit: cover;
   transform: scaleX(-1);
   background: #000;
+}
+/* A shared screen is not a mirror, and its text has to read. */
+.bl-camera.bl-screen {
+  transform: none;
+  object-fit: contain;
 }
