@@ -214,12 +214,13 @@ fit the strip and the oldest falls off.
 |---|---|
 | **"Hey Jarvis"** | Wake him |
 | **Space** | Talk without the wake word |
-| Just speak | Interrupt him mid-sentence (barge-in) |
+| Just speak, while he is busy | Queues what you said; it runs after the current answer |
+| **"Stop"** (or cancel, wait, hold on) on its own | Cuts him off mid-answer |
+| **Escape** / **STOP** button | Stop the current answer and listen; press again when idle to stand down |
 | **M** / **MIC ON** button | Mute or unmute the microphone for this session |
 | **NOISE STD / STRICT** button | How hard the mic works to keep JARVIS from hearing himself |
 | Tab strip | Click to show or tuck a blade, double-click to rename, ✕ to close |
 | **V** | Cycle the browser voice |
-| **Escape** | Stand down |
 | **D** | Live diagnostics panel |
 | **T** | One-line audio self-test |
 | **SYSTEMS** header | Collapse or expand the connected MCP list |
@@ -229,6 +230,18 @@ right. Muted, JARVIS hears nothing, not even his name, and the meter reads
 MUTED. Muting while he is listening stands him down. The microphone stream stays
 open, so unmuting is instant and never asks for permission again. Mute lasts for
 the page session.
+
+**The queue.** Talking over him no longer stops him. Whatever you say while he
+is thinking, running a tool or speaking goes on an **UP NEXT** list at the
+bottom right and runs as its own turn, in order, the moment the current answer
+ends. The ✕ on an item drops it. A bare stop word ("stop", "cancel", "hold on")
+is the exception and still cuts him off. In *strict* noise mode nothing is
+heard while he speaks, so queueing works while he thinks and runs tools only.
+
+**Escape.** Works like the terminal's. While he is busy it abandons the answer
+and opens the mic, queue intact, so the next thing you say runs next; the red
+**STOP** button under the status line is the same thing. Idle, a second Escape
+stands him down and clears the queue.
 
 **Noise guard.** The **NOISE STD / NOISE STRICT** button sits under the mute
 button. *Standard* is echo cancellation plus a raised trigger while he speaks,

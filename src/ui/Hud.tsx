@@ -146,7 +146,7 @@ function DecodeText({ text }: { text: string }) {
 
 /* --------------------------------------------------------------------- hud */
 
-export function Hud() {
+export function Hud({ onStop }: { onStop: () => void }) {
   const phase = useStore((s) => s.phase)
   const caption = useStore((s) => s.caption)
   const turns = useStore((s) => s.turns)
@@ -161,6 +161,8 @@ export function Hud() {
   const ui = useStore((s) => s.ui)
   const muted = useStore((s) => s.muted)
   const setMuted = useStore((s) => s.setMuted)
+  const queue = useStore((s) => s.queue)
+  const removeQueued = useStore((s) => s.removeQueued)
   const echoGuard = useStore((s) => s.echoGuard)
   const setEchoGuard = useStore((s) => s.setEchoGuard)
   // Open on first load; the user can fold it away once it gets long.
@@ -212,6 +214,13 @@ export function Hud() {
             {phase === 'boot' && bootNote ? bootNote : statusText[phase]}
           </span>
         </div>
+        {/* Visible only while he is working. Same call as Escape. */}
+        {(phase === 'thinking' || phase === 'tooling' || phase === 'speaking') && (
+          <button className="stop-btn" onClick={onStop} title="Stop (Esc)">
+            <span className="stop-square" />
+            STOP
+          </button>
+        )}
       </header>
 
       {/* Left rail: which integrations are live */}
@@ -347,6 +356,29 @@ export function Hud() {
         )}
       </AnimatePresence>
 
+      {/* What was said while he was busy, waiting its turn. */}
+      <AnimatePresence>
+        {queue.length > 0 && (
+          <motion.div
+            className="queue"
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 12 }}
+          >
+            <div className="queue-title">UP NEXT · {queue.length}</div>
+            {queue.map((q, i) => (
+              <div key={`${i}-${q}`} className="queue-item">
+                <span className="queue-n">{i + 1}</span>
+                <span className="queue-text">{q}</span>
+                <button className="queue-x" onClick={() => removeQueued(i)} title="Drop">
+                  ✕
+                </button>
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* The one surface. Panels used to sit alongside this as a second place
           for things to appear, which meant two places to look and a decision
           the model had to make on grounds it could not know. Everything renders
@@ -361,7 +393,7 @@ export function Hud() {
       <footer className="hud-bottom">
         <span className="hint">
           say <b>“hey jarvis”</b> · <kbd>Space</kbd> to talk · <kbd>G</kbd> hands ·{' '}
-          <kbd>M</kbd> mute
+          <kbd>M</kbd> mute · <kbd>Esc</kbd> stop
           {voice && (
             <>
               {' · '}

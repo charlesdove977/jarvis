@@ -254,6 +254,9 @@ type State = {
   /** Set when the user chose "Skip boot up": the boot overlay never shows and
    *  the live interface comes straight up. */
   skipBoot: boolean
+  /** Things said while he was busy, oldest first. Each runs as its own turn
+   *  once the current answer finishes; nothing said is thrown away. */
+  queue: string[]
   /** Cards currently on the display, newest last. */
   panels: Panel[]
   /** Blades currently open, newest last — which is also front-most. */
@@ -274,6 +277,9 @@ type State = {
   setMuted: (m: boolean) => void
   setEchoGuard: (g: EchoGuard) => void
   setSkipBoot: (skip: boolean) => void
+  enqueue: (text: string) => void
+  removeQueued: (index: number) => void
+  clearQueue: () => void
   pushPanel: (p: Panel) => void
   clearPanels: () => void
   pushBlade: (b: Blade) => void
@@ -322,6 +328,7 @@ export const useStore = create<State>((set) => ({
   muted: false,
   echoGuard: savedEcho(),
   skipBoot: false,
+  queue: [],
   ui: defaultUi(),
 
   setVoice: (voice) => set({ voice }),
@@ -335,6 +342,9 @@ export const useStore = create<State>((set) => ({
     set({ echoGuard })
   },
   setSkipBoot: (skipBoot) => set({ skipBoot }),
+  enqueue: (text) => set((s) => ({ queue: [...s.queue, text] })),
+  removeQueued: (index) => set((s) => ({ queue: s.queue.filter((_, i) => i !== index) })),
+  clearQueue: () => set({ queue: [] }),
   setGestures: (gestures) => set({ gestures }),
   setLooking: (looking) => set({ looking }),
   setBootNote: (bootNote) => set({ bootNote }),

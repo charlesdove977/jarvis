@@ -876,6 +876,87 @@ kbd {
   opacity: 0.45;
 }
 
+/* The stop button. Top-right, under the status line, only while busy. */
+.stop-btn {
+  position: absolute;
+  top: 100%;
+  right: 92px;
+  margin-top: 10px;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(255, 77, 94, 0.06);
+  border: 1px solid rgba(255, 77, 94, 0.55);
+  color: #ff4d5e;
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  cursor: pointer;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
+.stop-btn:hover { background: rgba(255, 77, 94, 0.18); }
+.stop-square {
+  width: 7px;
+  height: 7px;
+  background: #ff4d5e;
+  box-shadow: 0 0 8px #ff4d5e;
+}
+
+/* ------------------------------------------------------------------ queue */
+
+/* Bottom-right, clear of the transcript in the middle and the SIGNAL rail
+   above it. Same chrome as the rails; the items are plain text because they
+   are the user's words, not his. */
+.queue {
+  position: absolute;
+  right: 40px;
+  bottom: 132px;
+  width: min(320px, 28vw);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: auto;
+}
+.queue-title {
+  font-size: 8px;
+  opacity: 0.4;
+  letter-spacing: 0.34em;
+  margin-bottom: 2px;
+}
+.queue-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0.01em;
+  color: #fff;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  background: color-mix(in srgb, var(--accent) 6%, rgba(2, 8, 12, 0.7));
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
+.queue-n {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: var(--accent);
+  padding-top: 2px;
+}
+.queue-text { flex: 1; opacity: 0.85; }
+.queue-x {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  opacity: 0.4;
+  cursor: pointer;
+  font-size: 10px;
+}
+.queue-x:hover { opacity: 1; }
+
 /* --------------------------------------------------------------- ignition */
 
 .ignition {

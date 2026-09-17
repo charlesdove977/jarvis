@@ -92,6 +92,11 @@ const NAME = '(?:jarvis|jarvys|jervis|travis|jarviss|java\'s|jarv)'
 const BARE_NAME = new RegExp(`^(?:hey|hi|ok|okay|yo)?\\s*${NAME}[\\s,.!?]*$`, 'i')
 /** A leading vocative on a real command: "Jarvis, what's the weather". */
 const LEADING_NAME = new RegExp(`^(?:hey|hi|ok|okay|yo)?\\s*${NAME}\\b[\\s,.:!?-]*`, 'i')
+/** The one thing that still cuts him off mid-answer: a bare stop word, on its
+ *  own. Everything else said while he is busy goes on the queue. */
+const STOP_WORD =
+  /^(?:stop|cancel|wait|hold on|enough|quiet|shut up|never ?mind|forget it)(?:\s+(?:that|it|there|now|please))?[\s,.!?]*$/i
+const BUSY = new Set(['thinking', 'tooling', 'speaking'])
 
 export default function App() {
   const store = useStore
@@ -127,6 +132,7 @@ export default function App() {
     silence()
     turn.current++
     const s = store.getState()
+    s.clearQueue()
     s.setCaption('')
     s.setActiveTool(null)
     music.working(false)
@@ -233,11 +239,52 @@ export default function App() {
         music.duck(false)
         store.getState().setActiveTool(null)
         music.working(false)
-        // Stay open. Having to say his name again to add one more sentence is
-        // the difference between a conversation and a vending machine.
-        listen(FOLLOW_UP_MS)
+        // Anything said while he was answering runs next, in the order it was
+        // said. Otherwise stay open: having to say his name again to add one
+        // more sentence is the difference between a conversation and a vending
+        // machine.
+        const [next, ...rest] = store.getState().queue
+        if (next !== undefined) {
+          store.getState().clearQueue()
+          rest.forEach((q) => store.getState().enqueue(q))
+          void respond(next)
+        } else {
+          listen(FOLLOW_UP_MS)
+        }
       }
     }
+  }
+
+  /**
+   * The terminal's Escape: stop what he is doing and hand the floor back.
+   *
+   * Busy, it abandons the answer and opens the mic, with the queue intact, so
+   * the next thing said runs next. Already idle, it stands him down, which is
+   * also what clears the queue. The STOP button on the HUD is the same call.
+   */
+  const stopOrStandDown = () => {
+    const phase = store.getState().phase
+    if (phase === 'offline' || phase === 'boot') return
+    if (BUSY.has(phase)) {
+      clearIdle()
+      cutOff()
+      listen(AWAIT_SPEECH_MS)
+    } else {
+      goDormant()
+    }
+  }
+
+  /** Abandon the answer in flight, right now. */
+  const cutOff = () => {
+    silence()
+    // The turn counter moves in respond()'s replacement; bumping it here
+    // covers the case where nothing replaces it.
+    turn.current++
+    interrupt()
+    store.getState().setActiveTool(null)
+    music.working(false)
+    sfx.duck(false)
+    music.duck(false)
   }
 
   // -- voice events ---------------------------------------------------------
@@ -288,29 +335,21 @@ export default function App() {
   }
 
   /**
-   * Someone started talking. This is the whole point of the rewrite: he stops,
-   * immediately, whatever he was doing.
+   * Someone started talking.
+   *
+   * While he is busy this no longer stops him: the words are captured and
+   * onUtterance decides whether they were a stop word or the next task for the
+   * queue. Cutting off on the first syllable was the old behaviour, and it
+   * threw away a half-finished answer every time the user thought out loud.
    */
   const onSpeechStart = () => {
     if (store.getState().muted) return
-    clearIdle()
     const phase = store.getState().phase
     if (phase === 'offline' || phase === 'boot' || phase === 'dormant') return
+    if (BUSY.has(phase)) return
 
-    const wasBusy =
-      phase === 'thinking' || phase === 'tooling' || phase === 'speaking'
-
+    clearIdle()
     silence()
-    if (wasBusy) {
-      // Abandon the answer in flight. The turn counter moves in respond()'s
-      // replacement; bumping it here covers the case where nothing replaces it.
-      turn.current++
-      interrupt()
-      store.getState().setActiveTool(null)
-      music.working(false)
-      sfx.duck(false)
-      music.duck(false)
-    }
     store.getState().setPhase('listening')
   }
 
@@ -331,11 +370,32 @@ export default function App() {
       return
     }
 
+    // Said over him. A bare stop word still stops him; anything with content
+    // waits its turn.
+    if (BUSY.has(phase)) {
+      if (STOP_WORD.test(said)) {
+        clearIdle()
+        cutOff()
+        listen(AWAIT_SPEECH_MS)
+        return
+      }
+      store.getState().enqueue(said)
+      store.getState().setCaption('')
+      sfx.play('listen')
+      return
+    }
+
     void respond(said)
   }
 
   const onPartial = (text: string) => {
     store.getState().setCaption(text)
+  }
+
+  // Dev console only: feed him a line without a microphone.
+  //   __say('what is two plus two')
+  if (import.meta.env.DEV) {
+    ;(window as unknown as Record<string, unknown>).__say = onUtterance
   }
 
   const onVoiceError = (message: string) => {
@@ -724,11 +784,10 @@ export default function App() {
         return
       }
 
-      // Escape stands the whole thing down — the one thing the old build had
-      // no key for at all.
+      // Escape: stop the current answer and listen, or stand down when idle.
       if (e.key === 'Escape') {
         e.preventDefault()
-        if (store.getState().phase !== 'offline') goDormant()
+        stopOrStandDown()
         return
       }
 
@@ -771,7 +830,7 @@ export default function App() {
   return (
     <>
       <Scene />
-      <Hud />
+      <Hud onStop={stopOrStandDown} />
       <Boot />
       <Diagnostics />
       <Ignition
