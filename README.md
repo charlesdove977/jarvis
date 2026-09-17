@@ -42,14 +42,16 @@ language.
 
 ## Quick start
 
-First, install, then start it:
+First, clone and install, then start it:
 
 ```bash
+git clone https://github.com/charlesdove977/jarvis.git
+cd jarvis
 npm install
 npm start          # runs the brain and the face together
 ```
 
-Then open the URL it prints (http://localhost:5173) in **Chrome**, click **INITIALISE**, and say **“Hey Jarvis”**.
+Then open the URL it prints (http://localhost:5173) in **Chrome**, click **INITIALISE** (or **SKIP BOOT UP**), and say **“Hey Jarvis”**.
 
 Prefer two terminals? Run them separately instead:
 
@@ -198,10 +200,22 @@ chose.
 | **"Hey Jarvis"** | Wake him |
 | **Space** | Talk without the wake word |
 | Just speak | Interrupt him mid-sentence (barge-in) |
+| **M** / **MIC ON** button | Mute or unmute the microphone for this session |
 | **V** | Cycle the browser voice |
 | **Escape** | Stand down |
 | **D** | Live diagnostics panel |
 | **T** | One-line audio self-test |
+| **SYSTEMS** header | Collapse or expand the connected MCP list |
+
+**Mute.** The **MIC ON / MIC OFF** button sits under the signal meter on the
+right. Muted, JARVIS hears nothing, not even his name, and the meter reads
+MUTED. Muting while he is listening stands him down. The microphone stream stays
+open, so unmuting is instant and never asks for permission again. Mute lasts for
+the page session.
+
+**The SYSTEMS rail.** The left rail lists every connected MCP server with a
+count. It starts expanded, scrolls once the list is taller than about 40% of
+the window, and collapses to a single line when you click its header.
 
 ---
 
@@ -212,6 +226,11 @@ Power-up plays a four-beat Iron Man start-up (`src/ui/Boot.tsx`): an
 concentric reticle rings resolving into "J.A.R.V.I.S"; then a suit schematic;
 then the triangular arc reactor lighting up — with a start-up sound under it
 (`public/audio/boot-music.mp3`).
+
+Don't want to sit through it? Click **SKIP BOOT UP** under INITIALISE on the
+start screen. It skips the animation, the boot cue and the wait, and brings the
+live interface straight up in the same theme. A click is still needed either
+way, because browsers will not play audio before one.
 
 ---
 
@@ -233,6 +252,12 @@ Everything is optional in bridge mode. Frontend settings live in `.env.local`
 | `JARVIS_FILE_ROOTS` | — | Roots the `/file` endpoint may serve from |
 | `JARVIS_VOICE_ID` | — | ElevenLabs voice id |
 | `ELEVENLABS_API_KEY` | — | Optional; enables the ElevenLabs voice + Scribe |
+| `FISH_AUDIO_API_KEY` | — | Optional; speaks through Fish Audio instead (see below) |
+| `JARVIS_FISH_VOICE_ID` | public JARVIS voice | Fish Audio voice (use your own clone's id) |
+| `JARVIS_FISH_MODEL` | `s2-pro` | Fish Audio model |
+| `JARVIS_FISH_STYLE` | `[calm] [composed]` | Fish Audio delivery tags |
+| `JARVIS_WORKSPACE` | — | Run as your full Claude Code in that folder (see below) |
+| `JARVIS_CLAUDE_PATH` | `~/.local/bin/claude` | `claude` binary used in workspace mode |
 
 ### Frontend (`.env.local`)
 
@@ -256,6 +281,14 @@ You do not have to touch a flag. Either:
 Either way, `/health` starts reporting the capability, the browser picks it up on
 the next boot, and both the voice and transcription upgrade automatically.
 
+### Adding a Fish Audio voice
+
+Set `FISH_AUDIO_API_KEY` on the bridge and it takes over speech. Set
+`JARVIS_FISH_VOICE_ID` to your own cloned voice, or leave it for the public
+JARVIS voice. Transcription still uses ElevenLabs if that key is present, and
+the browser otherwise. Fish Audio bills the API from **API credit**, separate
+from plan credits: a `402 Insufficient API credit` error means topping that up.
+
 ---
 
 ## Enabling actions
@@ -276,6 +309,22 @@ npm run bridge:writes
 
 > Read `decideTool()` before you do. *"Hey Jarvis, clean up my downloads folder"*
 > means something rather different with writes enabled.
+
+### Workspace mode
+
+By default the bridge runs an isolated Claude Code: no CLAUDE.md, no hooks, no
+memory, no project MCP servers. Point it at a project folder and JARVIS becomes
+the same Claude Code you use in the terminal there, with that folder's
+CLAUDE.md, settings, hooks, skills, `.mcp.json` servers and memory, and the
+model and effort from your settings:
+
+```bash
+JARVIS_WORKSPACE=/path/to/your/project npm run start:workspace
+```
+
+`start:workspace` turns writes on, and in workspace mode that bypasses
+permission prompts entirely. Terminal-only output (code blocks, report lines,
+insight boxes) is filtered out before it is spoken.
 
 ---
 
@@ -308,7 +357,9 @@ All of this lives in `bridge/server.mjs`:
 
 ## Credits & licence
 
-MIT.
+MIT. Based on [adewaskar/jarvis](https://github.com/adewaskar/jarvis) by Aditya
+Dewaskar, with skip boot, mute, a collapsible SYSTEMS rail, Fish Audio voice and
+workspace mode added.
 
 The boot sound and any tracks in `public/audio/` ship with the project for the
 demo. If you go on to monetise something built on this, clearing the rights to

@@ -10,7 +10,7 @@
   },
   "scripts": {
     "start": "node scripts/start.mjs",
-    "start:workspace": "JARVIS_WORKSPACE=/Users/user/Desktop/Development-Charlie-2/Charlieautomates node scripts/start.mjs --writes",
+    "start:workspace": "node scripts/start.mjs --writes",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",

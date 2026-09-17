@@ -29,7 +29,7 @@ import {
   usingBridge,
   type Msg,
 } from './lib/brain'
-import { startAnalyser, micLevel } from './lib/audio'
+import { startAnalyser, micLevel, setMicMuted } from './lib/audio'
 import { probeCapabilities } from './lib/capabilities'
 import { env } from './config'
 
@@ -221,6 +221,8 @@ export default function App() {
 
   /** What the voice loop should do with what it hears, derived from phase. */
   const mode = (): VoiceMode => {
+    // Muted means nothing is heard at all, in any phase.
+    if (store.getState().muted) return 'deaf'
     switch (store.getState().phase) {
       case 'offline':
       case 'boot':
@@ -237,7 +239,7 @@ export default function App() {
 
   const onWake = (trailing: string) => {
     const phase = store.getState().phase
-    if (phase === 'offline' || phase === 'boot') return
+    if (phase === 'offline' || phase === 'boot' || store.getState().muted) return
 
     store.getState().setError(null)
     sfx.play('wake')
@@ -267,6 +269,7 @@ export default function App() {
    * immediately, whatever he was doing.
    */
   const onSpeechStart = () => {
+    if (store.getState().muted) return
     clearIdle()
     const phase = store.getState().phase
     if (phase === 'offline' || phase === 'boot' || phase === 'dormant') return
@@ -291,6 +294,7 @@ export default function App() {
   const onUtterance = (text: string) => {
     const phase = store.getState().phase
     if (phase === 'offline' || phase === 'boot' || phase === 'dormant') return
+    if (store.getState().muted) return
 
     // People keep using his name as a vocative once they're already talking to
     // him. Strip it rather than sending "jarvis" to the model as a question.
@@ -317,15 +321,16 @@ export default function App() {
 
   // -- power on -------------------------------------------------------------
 
-  const powerOn = async () => {
+  const powerOn = async (skip = false) => {
     // The ignition button and the space bar can both land here, and the phase
     // only moves after the first await — so without this a double press boots
     // twice, arming two voice loops and two download polls.
     if (booting.current) return
     booting.current = true
+    store.getState().setSkipBoot(skip)
 
     try {
-      await ignite()
+      await ignite(skip)
     } catch (err) {
       // The guard must not outlive a failed boot. Audio unlock can be refused,
       // the microphone prompt dismissed, the bridge unreachable at the wrong
@@ -345,17 +350,19 @@ export default function App() {
     }
   }
 
-  const ignite = async () => {
+  const ignite = async (skip: boolean) => {
     const s = store.getState()
 
     // Must happen inside the click handler — browsers won't start an
     // AudioContext or speech synthesis without a user gesture.
     await sfx.unlockAudio()
-    sfx.play('boot')
+    // Skipping the boot skips its cue and its score too: the rising boot track
+    // over an interface that is already up reads as a glitch.
+    if (!skip) sfx.play('boot')
     // The score. Must be started from inside this click handler for the same
     // reason as the rest of the audio.
     music.enable()
-    music.playBoot()
+    if (!skip) music.playBoot()
     music.startAmbient()
 
     s.setPhase('boot')
@@ -490,7 +497,7 @@ export default function App() {
     // status bar, rings, suit schematic, reactor power-up — before the live
     // interface takes over. Kept a touch under the boot cue so the music is
     // still rising as the reactor lands.
-    await new Promise((r) => setTimeout(r, 9200)) // boot sequence
+    if (!skip) await new Promise((r) => setTimeout(r, 9200)) // boot sequence
     await warming
     store.getState().setConnected(connectedLabels())
     store.getState().setVoice(currentVoiceName())
@@ -522,6 +529,9 @@ export default function App() {
       onUtterance,
       onError: onVoiceError,
     })
+    // The stream only exists once the loop has opened it, so a mute pressed
+    // during start-up has to be applied here as well.
+    setMicMuted(store.getState().muted)
 
     store.getState().setPhase('dormant')
   }
@@ -556,6 +566,22 @@ export default function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase])
+
+  // -- mute -------------------------------------------------------------------
+
+  /**
+   * The mute button and the M key both flip the store flag; this is the one
+   * place it takes effect. Muting mid-turn stands him down rather than leaving
+   * him listening to a mic that can no longer hear anything.
+   */
+  const muted = useStore((s) => s.muted)
+  useEffect(() => {
+    setMicMuted(muted)
+    if (!muted) return
+    const p = store.getState().phase
+    if (p === 'waking' || p === 'listening') goDormant()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [muted])
 
   // -- level pump + keys ----------------------------------------------------
 
@@ -650,6 +676,14 @@ export default function App() {
         return
       }
 
+      // M mutes the microphone for this session. Bare M only.
+      if (e.key === 'm' && !e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        const st = store.getState()
+        if (st.phase !== 'offline') st.setMuted(!st.muted)
+        return
+      }
+
       // Escape stands the whole thing down — the one thing the old build had
       // no key for at all.
       if (e.key === 'Escape') {
@@ -700,7 +734,10 @@ export default function App() {
       <Hud />
       <Boot />
       <Diagnostics />
-      <Ignition onStart={() => void powerOn()} />
+      <Ignition
+        onStart={() => void powerOn()}
+        onSkip={() => void powerOn(true)}
+      />
     </>
   )
 }

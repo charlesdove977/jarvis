@@ -33,11 +33,18 @@ import { useStore } from '../store'
  * mounting is not the dangerous direction; the fade-out is gone, and the boot
  * sequence takes the screen immediately anyway, so there is nothing to see.
  */
-export function Ignition({ onStart }: { onStart: () => void }) {
+export function Ignition({
+  onStart,
+  onSkip,
+}: {
+  onStart: () => void
+  onSkip: () => void
+}) {
   const phase = useStore((s) => s.phase)
   if (phase !== 'offline') return null
 
   return (
+    <>
     <button className="ignition" onClick={onStart}>
       {/*
         Spun by CSS rather than framer. As a motion element with
@@ -51,5 +58,13 @@ export function Ignition({ onStart }: { onStart: () => void }) {
         <span className="ignition-sub">click, or clap, to power up</span>
       </span>
     </button>
+    {/* A sibling, not a child: a button inside a button is invalid markup, and
+        the browser would hoist it out anyway. Sits above the full-frame
+        ignition button so it takes its own clicks. It unmounts with the
+        ignition screen, under the same plain conditional. */}
+    <button className="ignition-skip" onClick={onSkip}>
+      Skip boot up
+    </button>
+    </>
   )
 }

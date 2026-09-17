@@ -230,6 +230,13 @@ type State = {
   looking: string | null
   /** Transient status line during boot, e.g. the voice model download. */
   bootNote: string
+  /** Microphone muted for this session. The stream stays open (re-prompting
+   *  for permission on unmute would be worse); its tracks are disabled and the
+   *  voice loop is held deaf. */
+  muted: boolean
+  /** Set when the user chose "Skip boot up": the boot overlay never shows and
+   *  the live interface comes straight up. */
+  skipBoot: boolean
   /** Cards currently on the display, newest last. */
   panels: Panel[]
   /** Blades currently open, newest last — which is also front-most. */
@@ -245,6 +252,8 @@ type State = {
   setGestures: (on: boolean) => void
   setLooking: (why: string | null) => void
   setBootNote: (n: string) => void
+  setMuted: (m: boolean) => void
+  setSkipBoot: (skip: boolean) => void
   pushPanel: (p: Panel) => void
   clearPanels: () => void
   pushBlade: (b: Blade) => void
@@ -286,9 +295,13 @@ export const useStore = create<State>((set) => ({
   focusedBlade: null,
   expandedBlade: null,
   bootNote: '',
+  muted: false,
+  skipBoot: false,
   ui: defaultUi(),
 
   setVoice: (voice) => set({ voice }),
+  setMuted: (muted) => set({ muted }),
+  setSkipBoot: (skipBoot) => set({ skipBoot }),
   setGestures: (gestures) => set({ gestures }),
   setLooking: (looking) => set({ looking }),
   setBootNote: (bootNote) => set({ bootNote }),

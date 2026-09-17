@@ -156,6 +156,83 @@ body::after {
 .rail-item.dim { opacity: 0.3; }
 .rail-item.mono { font-family: 'JetBrains Mono', monospace; letter-spacing: 0.1em; }
 
+/* SYSTEMS rail: collapsible header + capped, scrollable list. The HUD is
+   pointer-events: none, so anything clickable opts back in. */
+.rail-toggle {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font-family: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.rail-toggle:hover { opacity: 0.85; }
+.rail-count {
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.1em;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  padding: 0 4px;
+}
+.rail-chevron {
+  width: 5px;
+  height: 5px;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 200ms ease;
+}
+.rail-chevron.open { transform: rotate(45deg); }
+.rail-list {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  max-height: 42vh;
+  overflow-y: auto;
+  padding-right: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--accent) 45%, transparent) transparent;
+}
+.rail-list::-webkit-scrollbar { width: 3px; }
+.rail-list::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* Mute: same angular cyan chrome as the rest of the HUD. */
+.mute-btn {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  color: inherit;
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  cursor: pointer;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
+.mute-btn:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.mute-icon {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+.mute-btn.is-muted { color: #ff4d5e; border-color: rgba(255, 77, 94, 0.6); }
+.mute-btn.is-muted .mute-icon { background: #ff4d5e; box-shadow: 0 0 8px #ff4d5e; }
+
 .tick {
   width: 5px;
   height: 5px;
@@ -838,6 +915,30 @@ kbd {
   letter-spacing: 0.28em;
   opacity: 0.4;
   text-transform: uppercase;
+}
+
+.ignition-skip {
+  position: fixed;
+  left: 50%;
+  bottom: 12vh;
+  transform: translateX(-50%);
+  z-index: 8;
+  padding: 10px 22px;
+  background: rgba(79, 214, 255, 0.04);
+  border: 1px solid rgba(79, 214, 255, 0.35);
+  color: #4fd6ff;
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+  text-transform: uppercase;
+  cursor: pointer;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  transition: background 200ms ease, text-shadow 200ms ease;
+}
+.ignition-skip:hover {
+  background: rgba(79, 214, 255, 0.12);
+  text-shadow: 0 0 18px rgba(79, 214, 255, 0.9);
 }
 
 .ignition:hover .ignition-word {

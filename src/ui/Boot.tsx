@@ -36,6 +36,7 @@ type Stage = 'bar' | 'rings' | 'suit' | 'reactor'
 
 export function Boot() {
   const phase = useStore((s) => s.phase)
+  const skipBoot = useStore((s) => s.skipBoot)
   const reduced = useReducedMotion()
   const [t, setT] = useState(0)
 
@@ -58,7 +59,7 @@ export function Boot() {
     return () => clearInterval(id)
   }, [phase])
 
-  if (phase !== 'boot') return null
+  if (phase !== 'boot' || skipBoot) return null
 
   const stage: Stage =
     t >= T.reactor ? 'reactor' : t >= T.suit ? 'suit' : t >= T.rings ? 'rings' : 'bar'

@@ -159,6 +159,11 @@ export function Hud() {
   const gestures = useStore((s) => s.gestures)
   const looking = useStore((s) => s.looking)
   const ui = useStore((s) => s.ui)
+  const muted = useStore((s) => s.muted)
+  const setMuted = useStore((s) => s.setMuted)
+  // Open on first load; the user can fold it away once it gets long.
+  const [systemsOpen, setSystemsOpen] = useState(true)
+  const systemCount = connected.length + 1 // + Web
 
   // accentFor folds JARVIS's overrides in over the phase colour, so one
   // variable on the root carries a theme change into every .hud-* rule without
@@ -210,18 +215,31 @@ export function Hud() {
       {/* Left rail: which integrations are live */}
       {ui.chrome.systems && (
         <aside className="rail rail-left">
-          <div className="rail-title">SYSTEMS</div>
-          {connected.length === 0 && <div className="rail-item dim">none linked</div>}
-          {connected.map((c) => (
-            <div key={c} className="rail-item">
-              <span className="tick" />
-              {c}
+          <button
+            className="rail-title rail-toggle"
+            onClick={() => setSystemsOpen((o) => !o)}
+            aria-expanded={systemsOpen}
+          >
+            SYSTEMS <span className="rail-count">{systemCount}</span>
+            <span className={`rail-chevron ${systemsOpen ? 'open' : ''}`} />
+          </button>
+          {systemsOpen && (
+            // Capped height and its own scroll, so a long MCP list stays a list
+            // instead of running off the top and bottom of the frame.
+            <div className="rail-list">
+              {connected.length === 0 && <div className="rail-item dim">none linked</div>}
+              {connected.map((c) => (
+                <div key={c} className="rail-item">
+                  <span className="tick" />
+                  {c}
+                </div>
+              ))}
+              <div className="rail-item">
+                <span className="tick" />
+                Web
+              </div>
             </div>
-          ))}
-          <div className="rail-item">
-            <span className="tick" />
-            Web
-          </div>
+          )}
         </aside>
       )}
 
@@ -231,7 +249,20 @@ export function Hud() {
         <div className="meter">
           <div className="meter-fill" style={{ height: `${level * 100}%` }} />
         </div>
-        <div className="rail-item mono">{(level * 100).toFixed(0).padStart(3, '0')}%</div>
+        <div className="rail-item mono">
+          {muted ? 'MUTED' : `${(level * 100).toFixed(0).padStart(3, '0')}%`}
+        </div>
+        {phase !== 'offline' && (
+          <button
+            className={`mute-btn ${muted ? 'is-muted' : ''}`}
+            onClick={() => setMuted(!muted)}
+            aria-pressed={muted}
+            title="Mute microphone (M)"
+          >
+            <span className="mute-icon" />
+            {muted ? 'MIC OFF' : 'MIC ON'}
+          </button>
+        )}
       </aside>
 
       <AnimatePresence>
@@ -312,7 +343,8 @@ export function Hud() {
 
       <footer className="hud-bottom">
         <span className="hint">
-          say <b>“hey jarvis”</b> · <kbd>Space</kbd> to talk · <kbd>G</kbd> hands
+          say <b>“hey jarvis”</b> · <kbd>Space</kbd> to talk · <kbd>G</kbd> hands ·{' '}
+          <kbd>M</kbd> mute
           {voice && (
             <>
               {' · '}

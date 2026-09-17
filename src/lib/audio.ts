@@ -21,6 +21,15 @@ export async function getMic(): Promise<MediaStream> {
   return stream
 }
 
+/**
+ * Mute or unmute the shared microphone. Disabling the tracks feeds silence to
+ * every consumer of the stream (analyser, VAD, recorder) without closing it,
+ * so unmuting is instant and never re-prompts for permission.
+ */
+export function setMicMuted(muted: boolean): void {
+  stream?.getAudioTracks().forEach((t) => (t.enabled = !muted))
+}
+
 export async function startAnalyser(): Promise<void> {
   if (analyser) return
   const s = await getMic()
