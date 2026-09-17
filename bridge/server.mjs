@@ -102,7 +102,136 @@ const ALLOW_WRITES = process.env.JARVIS_ALLOW_WRITES === '1'
  * The orchestrator model. Override with JARVIS_MODEL to trade quality for pace
  * — claude-sonnet-5 is noticeably snappier on camera if Opus feels slow.
  */
-const MODEL = process.env.JARVIS_MODEL ?? 'claude-opus-5'
+const MODEL =
+  process.env.JARVIS_MODEL ??
+  (process.env.JARVIS_WORKSPACE ? undefined : 'claude-opus-5')
+
+/**
+ * Workspace mode. Point JARVIS_WORKSPACE at a folder and JARVIS runs as the same
+ * Claude Code you use in that folder: its CLAUDE.md, settings, hooks, output
+ * style, .mcp.json servers, skills and auto-memory all load, and the model and
+ * effort come from those settings unless JARVIS_MODEL / JARVIS_EFFORT override
+ * them. With writes on, permissions are bypassed entirely. Unset, the bridge
+ * keeps its isolated defaults below.
+ */
+const WORKSPACE = process.env.JARVIS_WORKSPACE ?? null
+
+/**
+ * Hooks and output styles written for a terminal add blocks that make no sense
+ * spoken: fenced code (the DEVMODE block), ★ Insight boxes, --- rules, and the
+ * terminal report lines (Aiming at, Executing, Adjacent, confidence tags, and
+ * "Heading:" lists such as Delivered or Decisions made). In workspace mode text
+ * is passed through a character at a time until a line could be one of those,
+ * and those lines are dropped before they reach the voice or the transcript,
+ * so what remains is the short spoken answer JARVIS is built to give.
+ */
+const REPORT_MARKERS = [
+  'Aiming at:', 'Executing:', 'Adjacent:', 'Objection:', "Claude's idea:",
+  'Gap:', 'Pattern:', 'Authorized by:', 'UPDATED:', 'MISREAD:', 'DEFERRED:',
+]
+const INLINE_NOISE = /\s?\[\d\/5\]|\s?⚑/g
+
+function speechFilter(emit) {
+  let line = ''
+  let decided = false
+  let inFence = false
+  let inInsight = false
+  let inList = false
+
+  const blocked = (text) => {
+    const t = text.trim()
+    if (t.startsWith('```')) {
+      inFence = !inFence
+      return true
+    }
+    if (inFence) return true
+    if (t.includes('★ Insight')) {
+      inInsight = true
+      return true
+    }
+    if (inInsight) {
+      if (/^`?─{5,}/.test(t)) inInsight = false
+      return true
+    }
+    if (t === '---') return true
+    // A report heading or marker, and the bullet list that follows it.
+    if (inList && (t === '' || /^([-*•]|\d+\.)\s/.test(t))) return true
+    inList = false
+    if (REPORT_MARKERS.some((m) => t.startsWith(m))) {
+      inList = true
+      return true
+    }
+    if (/^[A-Z][^.!?:]{0,60}:$/.test(t.replace(INLINE_NOISE, ''))) {
+      inList = true
+      return true
+    }
+    return false
+  }
+  // A line is safe to stream once it has enough characters to rule out every
+  // opener above and we are not inside a block.
+  const mayOpenBlock = (text) => {
+    const t = text.trimStart()
+    return (
+      inFence ||
+      inInsight ||
+      inList ||
+      t.length < 3 ||
+      t.startsWith('```') ||
+      t.startsWith('`★') ||
+      t.startsWith('★') ||
+      t.startsWith('---') ||
+      REPORT_MARKERS.some((m) => m.startsWith(t) || t.startsWith(m)) ||
+      // Could still turn out to be a short "Heading:" line.
+      (/^[A-Z]/.test(t) && t.length <= 66 && !/[.!?]/.test(t))
+    )
+  }
+
+  return {
+    push(text) {
+      let out = ''
+      for (const ch of text) {
+        if (ch === '\n') {
+          if (decided) out += '\n'
+          else if (!blocked(line)) out += line + '\n'
+          line = ''
+          decided = false
+          continue
+        }
+        if (decided) {
+          out += ch
+          continue
+        }
+        line += ch
+        if (!mayOpenBlock(line)) {
+          inList = false
+          out += line
+          decided = true
+        }
+      }
+      out = out.replace(INLINE_NOISE, '')
+      if (out) emit(out)
+    },
+    finish() {
+      if (!decided && line && !blocked(line)) emit(line.replace(INLINE_NOISE, ''))
+      line = ''
+      decided = false
+      inFence = false
+      inInsight = false
+      inList = false
+    },
+  }
+}
+
+/** The same rules applied to a finished answer. */
+function stripForSpeech(text) {
+  let out = ''
+  const filter = speechFilter((chunk) => {
+    out += chunk
+  })
+  filter.push(text)
+  filter.finish()
+  return out.trim()
+}
 
 /**
  * How hard the model thinks before answering.
@@ -119,7 +248,8 @@ const MODEL = process.env.JARVIS_MODEL ?? 'claude-opus-5'
  * matters more than pace; drop back to 'low' when filming and every second of
  * dead air shows.
  */
-const EFFORT = process.env.JARVIS_EFFORT ?? 'high'
+const EFFORT =
+  process.env.JARVIS_EFFORT ?? (process.env.JARVIS_WORKSPACE ? undefined : 'high')
 
 /**
  * Both spellings of every renamed built-in are listed on purpose. The SDK
@@ -460,6 +590,18 @@ function elevenKey() {
 const VOICE_ID = process.env.JARVIS_VOICE_ID ?? 'JBFqnCBsd6RMkjVDRZzb'
 
 /**
+ * Fish Audio voice. When FISH_AUDIO_API_KEY is set it takes over /tts, speaking
+ * in the cloned voice below with a delivery style prepended as inline tags.
+ * Fish bills the REST API from "API credit", which is separate from platform
+ * credit; a 402 here means that balance is empty.
+ */
+const FISH_KEY = process.env.FISH_AUDIO_API_KEY ?? null
+const FISH_VOICE_ID =
+  process.env.JARVIS_FISH_VOICE_ID ?? '41f0953d7a6b4c078445c7e65d620eeb' // public "JARVIS" voice (British, calm)
+const FISH_MODEL = process.env.JARVIS_FISH_MODEL ?? 's2-pro'
+const FISH_STYLE = process.env.JARVIS_FISH_STYLE ?? '[calm] [composed]'
+
+/**
  * Where /file is permitted to read from, and how big a read may get.
  *
  * The roots are realpath'd once at boot so the containment check below compares
@@ -684,7 +826,9 @@ const handleRequest = async (req, res) => {
     // student with nothing configured still has a working assistant.
     const eleven = Boolean(elevenKey())
     res.writeHead(200, { ...cors, 'content-type': 'application/json' })
-    return res.end(JSON.stringify({ ok: true, tts: eleven, stt: eleven }))
+    return res.end(
+      JSON.stringify({ ok: true, tts: eleven || Boolean(FISH_KEY), stt: eleven }),
+    )
   }
 
   // Serve local image files to the page. Screenshots and generated art land on
@@ -808,7 +952,7 @@ const handleRequest = async (req, res) => {
 
   if (req.method === 'POST' && req.url === '/tts') {
     const key = elevenKey()
-    if (!key) {
+    if (!key && !FISH_KEY) {
       res.writeHead(503, cors)
       return res.end('no elevenlabs key')
     }
@@ -842,7 +986,22 @@ const handleRequest = async (req, res) => {
       return res.end('no text')
     }
     try {
-      const upstream = await fetch(
+      const upstream = FISH_KEY
+        ? await fetch('https://api.fish.audio/v1/tts', {
+            method: 'POST',
+            headers: {
+              authorization: `Bearer ${FISH_KEY}`,
+              model: FISH_MODEL,
+              'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+              text: `${FISH_STYLE} ${text}`,
+              reference_id: FISH_VOICE_ID,
+              format: 'mp3',
+              latency: 'balanced',
+            }),
+          })
+        : await fetch(
         `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream` +
           // 22kHz mono is half the bytes of 44kHz and indistinguishable through
           // a laptop speaker; optimize_streaming_latency=3 trades a little
@@ -1004,7 +1163,15 @@ console.log(`[jarvis] bridge listening on ws://localhost:${PORT}`)
 console.log(
   `[jarvis] speech ${elevenKey() ? 'via ElevenLabs (key from MCP config)' : 'using browser fallback voice'}`,
 )
-console.log(`[jarvis] model ${MODEL} · effort ${EFFORT}`)
+console.log(
+  `[jarvis] model ${MODEL ?? 'from settings'} · effort ${EFFORT ?? 'from settings'}`,
+)
+if (WORKSPACE) {
+  console.log(
+    `[jarvis] workspace mode: ${WORKSPACE} (CLAUDE.md, settings, hooks, memory, .mcp.json)` +
+      (ALLOW_WRITES ? ' · permissions bypassed' : ''),
+  )
+}
 console.log(
   `[jarvis] writes ${ALLOW_WRITES ? 'ENABLED' : 'disabled'}` +
     (ALLOW_WRITES ? '' : ' — set JARVIS_ALLOW_WRITES=1 to permit shell/file/device actions'),
@@ -1085,6 +1252,9 @@ wss.on('connection', (socket) => {
    */
   let answering = null
   const sendTurn = (msg) => send({ ...msg, ask: answering })
+  const spoken = WORKSPACE
+    ? speechFilter((delta) => sendTurn({ type: 'text', delta }))
+    : { push: (delta) => sendTurn({ type: 'text', delta }), finish() {} }
 
   /**
    * Asking the browser for something and waiting for the answer.
@@ -1219,10 +1389,20 @@ wss.on('connection', (socket) => {
       // tuned for a coding agent — verbose, file-oriented, and a large chunk
       // of input tokens on every turn. Replacing it makes the persona stick,
       // keeps answers short enough to speak, and cuts cost per turn.
-      systemPrompt: SYSTEM_PROMPT,
+      // Workspace mode keeps Claude Code's own prompt, which is what carries
+      // CLAUDE.md and auto-memory, and adds the persona on top.
+      systemPrompt: WORKSPACE
+        ? { type: 'preset', preset: 'claude_code', append: SYSTEM_PROMPT }
+        : SYSTEM_PROMPT,
       // Run from the home directory so project-scoped MCP servers don't shadow
       // the global ones, and so file tools have a sane root.
-      cwd: homedir(),
+      cwd: WORKSPACE ?? homedir(),
+      // The SDK ships its own Claude Code binary, which lags the one you run in
+      // the terminal and rejects newer models set in your settings. Workspace
+      // mode is meant to be that same Claude Code, so use the installed CLI.
+      pathToClaudeCodeExecutable: WORKSPACE
+        ? (process.env.JARVIS_CLAUDE_PATH ?? join(homedir(), '.local/bin/claude'))
+        : undefined,
       // No filesystem settings at all. Left to its default the SDK loads
       // ~/.claude/settings.json and settings.local.json exactly as the CLI
       // does — which on a working machine means a bypassPermissions default
@@ -1235,7 +1415,7 @@ wss.on('connection', (socket) => {
       //
       // The cost is that MCP servers stop being discovered too, which is why
       // mcpServers above passes them in by hand.
-      settingSources: [],
+      settingSources: WORKSPACE ? ['user', 'project', 'local'] : [],
       // Stated explicitly, and it has to be.
       //
       // With no `model` here the SDK falls back to its own default, which on
@@ -1246,8 +1426,9 @@ wss.on('connection', (socket) => {
       // without this line nothing in the project has a say at all.
       model: MODEL,
       effort: EFFORT,
-      maxTurns: 24,
-      permissionMode: 'default',
+      maxTurns: WORKSPACE ? undefined : 24,
+      permissionMode: WORKSPACE && ALLOW_WRITES ? 'bypassPermissions' : 'default',
+      allowDangerouslySkipPermissions: Boolean(WORKSPACE && ALLOW_WRITES),
       // Without this the SDK only emits whole assistant messages, and JARVIS
       // would sit silent until the entire answer was written. Partial events
       // are what let speech start on the first finished sentence.
@@ -1300,7 +1481,7 @@ wss.on('connection', (socket) => {
               ev.delta?.type === 'text_delta' &&
               ev.delta.text
             ) {
-              sendTurn({ type: 'text', delta: ev.delta.text })
+              spoken.push(ev.delta.text)
             }
             if (
               ev?.type === 'content_block_start' &&
@@ -1342,10 +1523,13 @@ wss.on('connection', (socket) => {
             // empty text is indistinguishable from a turn that simply had
             // nothing to say — the HUD stops spinning and JARVIS stands there
             // silent. Say what happened instead.
+            spoken.finish()
             if (msg.subtype === 'success') {
               sendTurn({
                 type: 'done',
-                text: msg.result ?? '',
+                text: WORKSPACE
+                  ? stripForSpeech(msg.result ?? '')
+                  : (msg.result ?? ''),
                 costUsd: msg.total_cost_usd ?? null,
               })
             } else {
