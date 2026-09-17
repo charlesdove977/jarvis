@@ -22,7 +22,8 @@ import { uiServer } from './ui.mjs'
 import { chromeAvailable, chromeServer } from './chrome.mjs'
 import { visionServer } from './vision.mjs'
 import { homedir, tmpdir } from 'node:os'
-import { readFileSync, realpathSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { readFile, realpath, stat } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve as resolvePath } from 'node:path'
 import { openRemote, proxyError, vetTarget, PROXY_UA } from './net.mjs'
@@ -250,6 +251,60 @@ function stripForSpeech(text) {
  */
 const EFFORT =
   process.env.JARVIS_EFFORT ?? (process.env.JARVIS_WORKSPACE ? undefined : 'high')
+
+/**
+ * The models the settings panel offers. Claude Code's current roster; "default"
+ * means whatever the settings files or the environment say, exactly as before.
+ */
+const MODELS = [
+  { id: '', label: 'Default (from settings)' },
+  { id: 'claude-fable-5-1', label: 'Fable 5.1' },
+  { id: 'claude-fable-5-1[1m]', label: 'Fable 5.1 (1M context)' },
+  { id: 'claude-opus-5', label: 'Opus 5' },
+  { id: 'claude-opus-5[1m]', label: 'Opus 5 (1M context)' },
+  { id: 'claude-sonnet-5', label: 'Sonnet 5' },
+  { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
+]
+const EFFORTS = ['', 'low', 'medium', 'high', 'max']
+
+/**
+ * Where the last session id lives, so a bridge restart resumes the
+ * conversation instead of forgetting it. One file per workspace (or the home
+ * directory in isolated mode), because the same machine can run more than one.
+ */
+const RESUME_DIR = join(homedir(), '.jarvis')
+const RESUME_FILE = join(
+  RESUME_DIR,
+  `resume-${createHash('sha1').update(WORKSPACE ?? homedir()).digest('hex').slice(0, 10)}.json`,
+)
+const readResume = () => {
+  try {
+    const j = JSON.parse(readFileSync(RESUME_FILE, 'utf8'))
+    // A record with a null session_id still carries the model / effort choice
+    // for the next connection; only its resume id is absent.
+    return typeof j === 'object' && j ? j : null
+  } catch {
+    return null
+  }
+}
+const writeResume = (session_id, model, effort) => {
+  try {
+    mkdirSync(RESUME_DIR, { recursive: true })
+    writeFileSync(
+      RESUME_FILE,
+      JSON.stringify({ session_id: session_id ?? null, model: model ?? null, effort: effort ?? null, at: Date.now() }),
+    )
+  } catch (err) {
+    console.warn('[jarvis] could not save the session choice:', err?.message ?? err)
+  }
+}
+const clearResume = () => {
+  try {
+    if (existsSync(RESUME_FILE)) unlinkSync(RESUME_FILE)
+  } catch {
+    /* nothing to clear */
+  }
+}
 
 /**
  * Both spellings of every renamed built-in are listed on purpose. The SDK
@@ -1219,9 +1274,27 @@ wss.on('connection', (socket) => {
 
   // Answer the HUD straight away rather than making it wait for the agent's
   // first turn. Refined later by the real init message.
-  socket.send(
-    JSON.stringify({ type: 'ready', servers: Object.keys(MCP_SERVERS) }),
-  )
+  /**
+   * Per-socket overrides from the settings panel. Null means "as the bridge
+   * was started", which in workspace mode means "as the settings files say".
+   * The saved resume record restores the last choice across a bridge restart.
+   */
+  const saved = readResume()
+  let modelOverride = saved?.model ?? null
+  let effortOverride = saved?.effort ?? null
+  const currentModel = () => modelOverride ?? MODEL ?? ''
+  const currentEffort = () => effortOverride ?? EFFORT ?? ''
+  const readyMsg = (servers, extra = {}) => ({
+    type: 'ready',
+    servers,
+    model: currentModel(),
+    effort: currentEffort(),
+    models: MODELS,
+    efforts: EFFORTS,
+    ...extra,
+  })
+
+  socket.send(JSON.stringify(readyMsg(Object.keys(MCP_SERVERS))))
 
   /** Resolves the pending user message into the SDK's input generator. */
   let deliver = null
@@ -1380,7 +1453,14 @@ wss.on('connection', (socket) => {
     if (!failed) sendTurn({ type: 'tool', name })
   }
 
-  const session = query({
+  let session = null
+  /** The id of the live session, for resume. Set by the SDK's init message. */
+  let sessionId = null
+  /** What this session was resumed from, if anything, so a failed resume can
+   *  fall back to a fresh start once instead of closing the socket. */
+  let resumedFrom = null
+
+  const startSession = (resumeId) => query({
     prompt: userMessages(),
     options: {
       // Everything Claude Code has configured, plus the HUD as an in-process
@@ -1445,8 +1525,9 @@ wss.on('connection', (socket) => {
       // Normally your own `/model` preference would decide, but that lives in
       // the settings files `settingSources: []` deliberately stops loading, so
       // without this line nothing in the project has a say at all.
-      model: MODEL,
-      effort: EFFORT,
+      model: currentModel() || undefined,
+      effort: currentEffort() || undefined,
+      resume: resumeId ?? undefined,
       maxTurns: WORKSPACE ? undefined : 24,
       permissionMode: WORKSPACE && ALLOW_WRITES ? 'bypassPermissions' : 'default',
       allowDangerouslySkipPermissions: Boolean(WORKSPACE && ALLOW_WRITES),
@@ -1482,9 +1563,9 @@ wss.on('connection', (socket) => {
   })
 
   // Pump the session's output stream to the browser for as long as it lives.
-  ;(async () => {
+  const pump = async (s) => {
     try {
-      for await (const msg of session) {
+      for await (const msg of s) {
         if (process.env.JARVIS_DEBUG === '1') {
           console.log('[msg]', msg.type, msg.event?.type ?? '')
         }
@@ -1578,15 +1659,29 @@ wss.on('connection', (socket) => {
               // Servers report 'pending' until first use — they connect
               // lazily — so only drop the ones that are actually unusable.
               const usable = (msg.mcp_servers ?? [])
-                .filter((s) => s.status !== 'needs-auth' && s.status !== 'failed')
-                .map((s) => s.name)
-              send({ type: 'ready', servers: usable })
-              console.log(`[jarvis] ${usable.length} MCP servers available`)
+                .filter((x) => x.status !== 'needs-auth' && x.status !== 'failed')
+                .map((x) => x.name)
+              if (typeof msg.session_id === 'string') {
+                sessionId = msg.session_id
+                writeResume(sessionId, modelOverride, effortOverride)
+              }
+              send(readyMsg(usable, { resumed: Boolean(resumedFrom) }))
+              console.log(
+                `[jarvis] ${usable.length} MCP servers available · model ${currentModel() || 'from settings'}` +
+                  (resumedFrom ? ` · resumed ${resumedFrom.slice(0, 8)}` : ''),
+              )
             }
             break
         }
       }
     } catch (err) {
+      // A resume that failed (the session was pruned, or belongs to another
+      // Claude Code) is worth one clean reconnect, not a dead socket. Clearing
+      // the resume file means the browser's automatic reconnect starts fresh.
+      if (resumedFrom) {
+        console.warn(`[jarvis] resume of ${resumedFrom.slice(0, 8)} failed, reconnecting fresh:`, err?.message ?? err)
+        clearResume()
+      }
       console.error('[jarvis] session error:', err)
       send({ type: 'error', message: String(err?.message ?? err) })
       // The stream is finished either way — nothing will ever be read from it
@@ -1598,7 +1693,28 @@ wss.on('connection', (socket) => {
       session.close?.()
       socket.close()
     }
-  })()
+  }
+
+  /**
+   * Apply a model / effort / new-conversation change by dropping the socket.
+   *
+   * Restarting the SDK session in-process does not work: a second query()
+   * spun up while the first is still closing on the same connection never
+   * consumes its input, so the next turn hangs. The browser reconnects on its
+   * own, and a fresh connection is the one path that always builds a clean
+   * session — with the new model, because the choice was just persisted, and
+   * resuming the same conversation when a session id was kept.
+   */
+  const applyConfig = () => {
+    closed = true
+    deliver?.(null)
+    session?.close?.()
+    socket.close()
+  }
+
+  resumedFrom = saved?.session_id ?? null
+  session = startSession(resumedFrom)
+  void pump(session)
 
   socket.on('message', (raw) => {
     let msg
@@ -1640,6 +1756,35 @@ wss.on('connection', (socket) => {
           inbox.push(text)
         }
       })
+    }
+
+    // The settings panel: a model, an effort, or a fresh conversation. Any of
+    // them restarts the session; model and effort changes keep the
+    // conversation by resuming the same session id.
+    if (msg.type === 'config') {
+      if ('model' in msg) {
+        const m = String(msg.model ?? '')
+        modelOverride = MODELS.some((x) => x.id === m) ? m || null : modelOverride
+      }
+      if ('effort' in msg) {
+        const e = String(msg.effort ?? '')
+        effortOverride = EFFORTS.includes(e) ? e || null : effortOverride
+      }
+      // Persist across the reconnect. A fresh conversation drops the session
+      // id but keeps the model and effort, saved with a null id so reconnect
+      // starts clean on the chosen model. A model or effort change keeps the
+      // id too, so the conversation is resumed.
+      if (msg.fresh) {
+        sessionId = null
+        writeResume(null, modelOverride, effortOverride)
+      } else {
+        writeResume(sessionId, modelOverride, effortOverride)
+      }
+      console.log(
+        `[jarvis] config: model ${currentModel() || 'from settings'} · effort ${currentEffort() || 'from settings'}` +
+          (msg.fresh ? ' · fresh conversation' : '') + ' · reconnecting',
+      )
+      applyConfig()
     }
 
     if (msg.type === 'reply' && typeof msg.id === 'string') {

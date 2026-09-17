@@ -37,6 +37,11 @@ type Frame = {
   index?: number
   title?: string
   servers?: Array<string | { name?: string }>
+  model?: string
+  effort?: string
+  models?: { id: string; label: string }[]
+  efforts?: string[]
+  resumed?: boolean
 }
 
 /** Every question gets an id so its answer can be told from anyone else's. */
@@ -54,6 +59,27 @@ export const bridgeServers = () => servers
 let onServers: ((s: string[]) => void) | null = null
 export function watchServers(fn: (s: string[]) => void) {
   onServers = fn
+}
+
+/** What the bridge is running, as reported on every ready message. */
+export type BridgeInfo = {
+  model: string
+  effort: string
+  models: { id: string; label: string }[]
+  efforts: string[]
+  resumed: boolean
+}
+let onInfo: ((info: BridgeInfo) => void) | null = null
+export function watchBridgeInfo(fn: (info: BridgeInfo) => void) {
+  onInfo = fn
+}
+
+/** The settings panel. Any of these restarts the agent session on the bridge;
+ *  model and effort keep the conversation, `fresh` starts it over. */
+export function configure(patch: { model?: string; effort?: string; fresh?: boolean }): void {
+  if (socket?.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: 'config', ...patch }))
+  }
 }
 
 /** Panels arrive out of band — they're pushed while a turn is in flight,
@@ -188,6 +214,15 @@ function dispatch(ws: WebSocket) {
         .map((s) => (typeof s === 'string' ? s : (s.name ?? '')))
         .filter(Boolean)
       onServers?.(servers)
+      if (Array.isArray(msg.models)) {
+        onInfo?.({
+          model: String(msg.model ?? ''),
+          effort: String(msg.effort ?? ''),
+          models: msg.models,
+          efforts: Array.isArray(msg.efforts) ? msg.efforts : [],
+          resumed: Boolean(msg.resumed),
+        })
+      }
       firstReady.resolve()
     } else if (msg.type === 'panel' && msg.panel) {
       onPanel?.(msg.panel)

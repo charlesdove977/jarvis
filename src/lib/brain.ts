@@ -50,6 +50,16 @@ export function watchTabs(fn: bridge.TabsHandler): void {
   if (usingBridge) bridge.watchTabs(fn)
 }
 
+/** Model, effort and roster, as the bridge reports them on every ready. */
+export function watchBridgeInfo(fn: (info: bridge.BridgeInfo) => void): void {
+  if (usingBridge) bridge.watchBridgeInfo(fn)
+}
+
+/** Change model or effort (conversation kept), or start a fresh one. */
+export function configure(patch: { model?: string; effort?: string; fresh?: boolean }): void {
+  if (usingBridge) bridge.configure(patch)
+}
+
 /** HUD panels are pushed mid-turn by the `display` tool, not returned by ask(). */
 export function watchPanels(fn: (panel: Panel) => void): void {
   if (usingBridge) bridge.watchPanels(fn)

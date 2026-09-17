@@ -23,6 +23,7 @@ import {
   watchPanels,
   watchBlades,
   watchTabs,
+  watchBridgeInfo,
   watchCapture,
   watchUi,
   watchConnection,
@@ -453,6 +454,7 @@ export default function App() {
     s.setPhase('boot')
 
     watchServers((servers) => store.getState().setConnected(servers))
+    watchBridgeInfo((info) => store.getState().setBridge(info))
     watchPanels((panel) => store.getState().pushPanel(panel))
     watchBlades((blade) => store.getState().pushBlade(blade))
     watchTabs((op, index, title) => {

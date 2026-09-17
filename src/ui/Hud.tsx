@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useStore, accentFor, type Phase } from '../store'
+import { configure } from '../lib/brain'
 import { Suggestions } from './Suggestions'
 import { BladeSweep, Blades } from './Blades'
 import { Effects } from './Effects'
@@ -162,6 +163,9 @@ export function Hud({ onStop }: { onStop: () => void }) {
   const muted = useStore((s) => s.muted)
   const setMuted = useStore((s) => s.setMuted)
   const queue = useStore((s) => s.queue)
+  const bridge = useStore((s) => s.bridge)
+  const settingsOpen = useStore((s) => s.settingsOpen)
+  const setSettingsOpen = useStore((s) => s.setSettingsOpen)
   const blades = useStore((s) => s.blades)
   const pushBlade = useStore((s) => s.pushBlade)
   const focusBlade = useStore((s) => s.focusBlade)
@@ -285,6 +289,65 @@ export function Hud({ onStop }: { onStop: () => void }) {
               >
                 SCREEN
               </button>
+              <button
+                className={`rail-btn ${settingsOpen ? 'is-on' : ''}`}
+                onClick={() => setSettingsOpen(!settingsOpen)}
+                title="Model, effort and session settings"
+              >
+                SETTINGS
+              </button>
+            </div>
+          )}
+          {settingsOpen && phase !== 'offline' && (
+            <div className="settings">
+              <div className="settings-row">
+                <label>Model</label>
+                <select
+                  value={bridge.model}
+                  onChange={(e) => configure({ model: e.target.value })}
+                >
+                  {(bridge.models.length ? bridge.models : [{ id: bridge.model, label: bridge.model || 'Default' }]).map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="settings-row">
+                <label>Effort</label>
+                <select
+                  value={bridge.effort}
+                  onChange={(e) => configure({ effort: e.target.value })}
+                >
+                  {(bridge.efforts.length ? bridge.efforts : [bridge.effort]).map((e) => (
+                    <option key={e} value={e}>
+                      {e || 'Default (from settings)'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="settings-row">
+                <label>Noise guard</label>
+                <select
+                  value={echoGuard}
+                  onChange={(e) => setEchoGuard(e.target.value as 'standard' | 'strict')}
+                >
+                  <option value="standard">Standard</option>
+                  <option value="strict">Strict (nothing heard while he speaks)</option>
+                </select>
+              </div>
+              <div className="settings-row settings-actions">
+                <button
+                  className="rail-btn"
+                  onClick={() => configure({ fresh: true })}
+                  title="Forget this conversation and start over"
+                >
+                  NEW CONVERSATION
+                </button>
+                <span className="settings-note">
+                  {bridge.resumed ? 'resumed from last time' : 'fresh session'}
+                </span>
+              </div>
             </div>
           )}
         </aside>

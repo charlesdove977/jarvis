@@ -224,6 +224,39 @@ body::after {
 }
 .rail-btn:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
 
+.rail-btn.is-on { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+
+/* The settings panel, under the rail buttons. Native selects, restyled just
+   enough to sit in the chrome; the dropdown itself is the browser's. */
+.settings {
+  pointer-events: auto;
+  margin-top: 10px;
+  width: 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  background: color-mix(in srgb, var(--accent) 5%, rgba(2, 8, 12, 0.85));
+  backdrop-filter: blur(8px);
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+.settings-row { display: flex; flex-direction: column; gap: 4px; }
+.settings-row label { font-size: 8px; letter-spacing: 0.3em; opacity: 0.45; }
+.settings select {
+  width: 100%;
+  padding: 5px 6px;
+  background: rgba(2, 8, 12, 0.9);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  color: #dff7ff;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+.settings-actions { flex-direction: row; align-items: center; justify-content: space-between; margin-top: 2px; }
+.settings-note { font-size: 8px; letter-spacing: 0.2em; opacity: 0.4; }
+
 /* Mute: same angular cyan chrome as the rest of the HUD. */
 .mute-btn {
   pointer-events: auto;

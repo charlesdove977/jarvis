@@ -251,6 +251,26 @@ you, so barge-in by voice is off and **Escape** is how you cut him off. Use
 strict when he keeps answering his own sentences through the speakers. The
 choice is saved across reloads.
 
+**See your screen.** The **SCREEN** button under the SYSTEMS rail shares a tab,
+a window or the whole screen through Chrome's own picker, and **CAMERA** opens
+the webcam. Either one opens as a tab you can move and tuck away. While a screen
+share is live a screenshot rides along with every message, so "what do you think
+of this" needs no command, and "look at this" sees the screen rather than the
+webcam. End the share from Chrome's bar and the tab closes itself.
+
+**Settings.** The **SETTINGS** button under the rail opens a small panel:
+
+- **Model** and **Effort** dropdowns list what Claude Code offers on this
+  machine. Changing either reconnects the bridge on the new setting and keeps
+  the conversation. "Default (from settings)" hands the choice back to your
+  Claude Code settings.
+- **Noise guard**, the same standard / strict as the button.
+- **New conversation** forgets the current thread and starts fresh on the same
+  model.
+
+The choice is saved, so a bridge restart comes back on the same model and
+resumes the same conversation instead of forgetting it.
+
 **The SYSTEMS rail.** The left rail lists every connected MCP server with a
 count. It starts expanded, scrolls once the list is taller than about 40% of
 the window, and collapses to a single line when you click its header.

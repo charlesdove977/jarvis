@@ -259,6 +259,9 @@ type State = {
   /** Things said while he was busy, oldest first. Each runs as its own turn
    *  once the current answer finishes; nothing said is thrown away. */
   queue: string[]
+  /** What the bridge is running: model, effort, the roster to pick from. */
+  bridge: { model: string; effort: string; models: { id: string; label: string }[]; efforts: string[]; resumed: boolean }
+  settingsOpen: boolean
   /** Cards currently on the display, newest last. */
   panels: Panel[]
   /** Blades currently open, newest last — which is also front-most. */
@@ -282,6 +285,8 @@ type State = {
   enqueue: (text: string) => void
   removeQueued: (index: number) => void
   clearQueue: () => void
+  setBridge: (b: State['bridge']) => void
+  setSettingsOpen: (open: boolean) => void
   pushPanel: (p: Panel) => void
   clearPanels: () => void
   pushBlade: (b: Blade) => void
@@ -331,6 +336,8 @@ export const useStore = create<State>((set) => ({
   echoGuard: savedEcho(),
   skipBoot: false,
   queue: [],
+  bridge: { model: '', effort: '', models: [], efforts: [], resumed: false },
+  settingsOpen: false,
   ui: defaultUi(),
 
   setVoice: (voice) => set({ voice }),
@@ -347,6 +354,8 @@ export const useStore = create<State>((set) => ({
   enqueue: (text) => set((s) => ({ queue: [...s.queue, text] })),
   removeQueued: (index) => set((s) => ({ queue: s.queue.filter((_, i) => i !== index) })),
   clearQueue: () => set({ queue: [] }),
+  setBridge: (bridge) => set({ bridge }),
+  setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
   setGestures: (gestures) => set({ gestures }),
   setLooking: (looking) => set({ looking }),
   setBootNote: (bootNote) => set({ bootNote }),
