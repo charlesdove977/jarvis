@@ -255,15 +255,14 @@ export default function App() {
         music.duck(false)
         store.getState().setActiveTool(null)
         music.working(false)
-        // Anything said while he was answering runs next, in the order it was
-        // said. Otherwise stay open: having to say his name again to add one
-        // more sentence is the difference between a conversation and a vending
-        // machine.
-        const [next, ...rest] = store.getState().queue
-        if (next !== undefined) {
+        // Everything said while he was answering runs now, MERGED into one
+        // instruction in the order it was said — not one turn per phrase. Three
+        // quick additions become a single coherent ask, which is what the user
+        // meant by saying them. Otherwise stay open for a follow-up.
+        const q = store.getState().queue
+        if (q.length) {
           store.getState().clearQueue()
-          rest.forEach((q) => store.getState().enqueue(q))
-          void respond(next)
+          void respond(q.join('. '))
         } else {
           listen(FOLLOW_UP_MS)
         }
@@ -284,7 +283,16 @@ export default function App() {
     if (BUSY.has(phase)) {
       clearIdle()
       cutOff()
-      listen(AWAIT_SPEECH_MS)
+      // If things were queued while he worked, Escape does not just stop — it
+      // takes everything you added and runs it together now, as one re-planned
+      // instruction. Nothing queued means a plain stop-and-listen.
+      const q = store.getState().queue
+      if (q.length) {
+        store.getState().clearQueue()
+        void respond(q.join('. '))
+      } else {
+        listen(AWAIT_SPEECH_MS)
+      }
     } else {
       goDormant()
     }
