@@ -15,9 +15,9 @@ if [ -n "$B" ]; then
 fi
 : > jarvis-run.log
 if [ -n "$FISH" ]; then
-  env JARVIS_WORKSPACE=/Users/user/Desktop/Development-Charlie-2/Charlieautomates "$FISH" nohup node scripts/start.mjs --writes >> jarvis-run.log 2>&1 &
+  env JARVIS_WORKSPACE=/Users/user/Desktop/Development-Charlie-2/Charlieautomates JARVIS_MODEL=claude-sonnet-5 JARVIS_EFFORT=low "$FISH" nohup node scripts/start.mjs --writes >> jarvis-run.log 2>&1 &
 else
-  env JARVIS_WORKSPACE=/Users/user/Desktop/Development-Charlie-2/Charlieautomates nohup node scripts/start.mjs --writes >> jarvis-run.log 2>&1 &
+  env JARVIS_WORKSPACE=/Users/user/Desktop/Development-Charlie-2/Charlieautomates JARVIS_MODEL=claude-sonnet-5 JARVIS_EFFORT=low nohup node scripts/start.mjs --writes >> jarvis-run.log 2>&1 &
 fi
 sleep 8
 curl -s http://localhost:8787/health; echo

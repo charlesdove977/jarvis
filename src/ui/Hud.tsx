@@ -147,7 +147,14 @@ function DecodeText({ text }: { text: string }) {
 
 /* --------------------------------------------------------------------- hud */
 
-export function Hud({ onStop }: { onStop: () => void }) {
+export function Hud({
+  onStop,
+  onSubmitText,
+}: {
+  onStop: () => void
+  onSubmitText: (text: string) => void
+}) {
+  const [draft, setDraft] = useState('')
   const phase = useStore((s) => s.phase)
   const caption = useStore((s) => s.caption)
   const turns = useStore((s) => s.turns)
@@ -508,6 +515,31 @@ export function Hud({ onStop }: { onStop: () => void }) {
             ✕
           </button>
         </div>
+      )}
+
+      {/* Type to JARVIS. The reliable path — no wake word, no microphone. Enter
+          sends; while he is busy it joins the queue. */}
+      {phase !== 'offline' && phase !== 'boot' && (
+        <form
+          className="textbar"
+          onSubmit={(e) => {
+            e.preventDefault()
+            const t = draft.trim()
+            if (!t) return
+            onSubmitText(t)
+            setDraft('')
+          }}
+        >
+          <span className="textbar-prompt">›</span>
+          <input
+            className="textbar-input"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Type to JARVIS…"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </form>
       )}
 
       <footer className="hud-bottom">

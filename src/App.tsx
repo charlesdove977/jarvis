@@ -298,6 +298,23 @@ export default function App() {
     }
   }
 
+  /**
+   * Typed input from the on-screen box. Works from any phase, no wake word: if
+   * he is busy it joins the coalescing queue, otherwise it runs as a turn now.
+   * This is the reliable path that does not touch the microphone at all.
+   */
+  const submitText = (text: string) => {
+    const t = text.trim()
+    if (!t) return
+    const phase = store.getState().phase
+    if (phase === 'offline' || phase === 'boot') return
+    if (BUSY.has(phase)) {
+      store.getState().enqueue(t)
+      return
+    }
+    void respond(t)
+  }
+
   /** Abandon the answer in flight, right now. */
   const cutOff = () => {
     silence()
@@ -878,7 +895,7 @@ export default function App() {
   return (
     <>
       <Scene />
-      <Hud onStop={stopOrStandDown} />
+      <Hud onStop={stopOrStandDown} onSubmitText={submitText} />
       <Boot />
       <Diagnostics />
       <Ignition

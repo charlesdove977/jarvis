@@ -470,6 +470,41 @@ body::after {
 }
 .error-x:hover { opacity: 1; }
 
+/* The type-to-JARVIS bar. Reliable input, no mic. */
+.textbar {
+  position: absolute;
+  left: 50%;
+  bottom: 68px;
+  transform: translateX(-50%);
+  width: min(680px, 70vw);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  pointer-events: auto;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  background: color-mix(in srgb, var(--accent) 6%, rgba(2, 8, 12, 0.82));
+  backdrop-filter: blur(8px);
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+.textbar-prompt {
+  color: var(--accent);
+  font-family: 'JetBrains Mono', monospace;
+  opacity: 0.8;
+}
+.textbar-input {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: #eaffff;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+.textbar-input::placeholder { color: color-mix(in srgb, var(--accent) 50%, transparent); }
+
 .hud-bottom {
   position: absolute;
   bottom: 44px;
