@@ -21,6 +21,7 @@ import { displayServer } from './panels.mjs'
 import { uiServer } from './ui.mjs'
 import { chromeAvailable, chromeServer } from './chrome.mjs'
 import { visionServer } from './vision.mjs'
+import { startWhisper, whisperReady, whisperTranscribe, whisperUnavailable } from './whisper.mjs'
 import { homedir, tmpdir } from 'node:os'
 import { existsSync, mkdirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
@@ -890,7 +891,7 @@ const handleRequest = async (req, res) => {
     const eleven = Boolean(elevenKey())
     res.writeHead(200, { ...cors, 'content-type': 'application/json' })
     return res.end(
-      JSON.stringify({ ok: true, tts: eleven || Boolean(FISH_KEY), stt: eleven }),
+      JSON.stringify({ ok: true, tts: eleven || Boolean(FISH_KEY), stt: eleven || whisperReady() }),
     )
   }
 
@@ -1115,9 +1116,10 @@ const handleRequest = async (req, res) => {
   // touches this endpoint; this is only for the words.
   if (req.method === 'POST' && req.url === '/stt') {
     const key = elevenKey()
-    if (!key) {
+    // No cloud key and no local worker: nothing can transcribe. Say so.
+    if (!key && !whisperReady()) {
       res.writeHead(503, cors)
-      return res.end('no elevenlabs key')
+      return res.end(whisperUnavailable() ? 'no speech-to-text available' : 'local speech-to-text still warming up')
     }
 
     const type = req.headers['content-type'] || 'audio/webm'
@@ -1144,6 +1146,18 @@ const handleRequest = async (req, res) => {
     if (size < 1200) {
       res.writeHead(200, { ...cors, 'content-type': 'application/json' })
       return res.end(JSON.stringify({ text: '' }))
+    }
+
+    // No cloud key: transcribe locally with the warm faster-whisper worker.
+    if (!key) {
+      try {
+        const text = await whisperTranscribe(Buffer.concat(chunks), type)
+        res.writeHead(200, { ...cors, 'content-type': 'application/json' })
+        return res.end(JSON.stringify({ text }))
+      } catch (err) {
+        res.writeHead(502, cors)
+        return res.end(String(err?.message ?? err))
+      }
     }
 
     try {
@@ -1223,6 +1237,12 @@ const wss = new WebSocketServer({
 server.listen(PORT)
 
 console.log(`[jarvis] bridge listening on ws://localhost:${PORT}`)
+
+// Warm up local speech-to-text unless an ElevenLabs key already covers it. The
+// browser records whole utterances and posts them to /stt; a warm faster-whisper
+// worker answers when no cloud STT is configured. Never fatal — degrades to the
+// browser recogniser if Python or the package is missing.
+if (!elevenKey()) startWhisper()
 console.log(
   `[jarvis] speech ${elevenKey() ? 'via ElevenLabs (key from MCP config)' : 'using browser fallback voice'}`,
 )
