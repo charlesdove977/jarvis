@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useStore, accentFor, type Phase } from '../store'
 import { configure } from '../lib/brain'
-import { Suggestions } from './Suggestions'
 import { BladeSweep, Blades } from './Blades'
 import { Effects } from './Effects'
 import { Pointer } from './Pointer'
@@ -502,7 +501,8 @@ export function Hud({
           system it documents stays findable. */}
       <Blades />
 
-      {ui.chrome.suggestions && <Suggestions />}
+      {/* Suggestions strip removed: the type-to-JARVIS bar sits here now, and the
+          rotating "try saying…" text read as clutter cycling behind the box. */}
 
       {error && (
         <div className="error">
@@ -544,8 +544,7 @@ export function Hud({
 
       <footer className="hud-bottom">
         <span className="hint">
-          say <b>“hey jarvis”</b> · <kbd>Space</kbd> to talk · <kbd>G</kbd> hands ·{' '}
-          <kbd>M</kbd> mute · <kbd>Esc</kbd> stop
+          type below, or <kbd>M</kbd> for voice · <kbd>Space</kbd> talk · <kbd>G</kbd> hands · <kbd>Esc</kbd> stop
           {voice && (
             <>
               {' · '}

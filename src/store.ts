@@ -332,7 +332,7 @@ export const useStore = create<State>((set) => ({
   expandedBlade: null,
   hiddenBlades: [],
   bootNote: '',
-  muted: false,
+  muted: true,
   echoGuard: savedEcho(),
   skipBoot: false,
   queue: [],
