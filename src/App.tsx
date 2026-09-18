@@ -152,6 +152,19 @@ export default function App() {
     idleTimer.current = setTimeout(goDormant, window)
   }
 
+  /**
+   * Space, held to talk. Straight into listening with no greeting: the greeting
+   * is what made Space unreliable — in strict noise mode JARVIS speaking his own
+   * line suppressed the user talking over it, so the command was dropped. The
+   * "…" shows at once so it is obvious he is capturing.
+   */
+  const pushToTalk = () => {
+    silence()
+    store.getState().setError(null)
+    listen(AWAIT_SPEECH_MS)
+    store.getState().setCaption('…')
+  }
+
   // -- one turn -------------------------------------------------------------
 
   const respond = async (said: string): Promise<void> => {
@@ -393,6 +406,17 @@ export default function App() {
 
   const onPartial = (text: string) => {
     store.getState().setCaption(text)
+    // Still hearing you: every live partial means speech is ongoing, so push the
+    // idle window back. Without this a sentence longer than the listen window
+    // (or a slow one) trips goDormant mid-utterance — the "…" vanishes and the
+    // rest of what you said is dropped. Only while actually capturing a command.
+    if (text) {
+      const phase = store.getState().phase
+      if (phase === 'listening' || phase === 'waking') {
+        clearIdle()
+        idleTimer.current = setTimeout(goDormant, AWAIT_SPEECH_MS)
+      }
+    }
   }
 
   // Dev console only: feed him a line without a microphone.
@@ -709,6 +733,18 @@ export default function App() {
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
 
+      // A HUD button keeps keyboard focus after a click, so Space or Escape
+      // would re-activate that button instead of driving the voice loop. For
+      // the keys we own, hand focus back to the page. preventDefault in each
+      // handler stops this press activating the button; the blur fixes the next.
+      if (
+        (e.code === 'Space' || e.key === 'Escape' || e.key === 'm') &&
+        document.activeElement instanceof HTMLElement &&
+        document.activeElement.tagName === 'BUTTON'
+      ) {
+        document.activeElement.blur()
+      }
+
       // V auditions the next British voice installed on this machine. Which
       // ones exist varies per Mac, so hearing them beats trusting a ranking.
       // Bare V only — ⌘V and ⌃V are paste, and swallowing those was rude.
@@ -813,7 +849,7 @@ export default function App() {
         onSpeechStart()
         listen(AWAIT_SPEECH_MS)
       } else {
-        onWake('')
+        pushToTalk()
       }
     }
     window.addEventListener('keydown', onKey)

@@ -199,6 +199,25 @@ export function Scene() {
       camera={{ position: [0, 0, 6.2], fov: 45 }}
       gl={{ antialias: true, alpha: true }}
       dpr={[1, 2]}
+      onCreated={({ gl }) => {
+        // Under GPU pressure (a screen recorder plus many tabs) the browser can
+        // drop the WebGL context. Without a handler the canvas goes black for
+        // good. Calling preventDefault on the loss lets the browser restore the
+        // context, and three re-uploads its resources on the restore event, so
+        // the reactor comes back instead of dying.
+        const canvas = gl.domElement
+        canvas.addEventListener(
+          'webglcontextlost',
+          (e) => {
+            e.preventDefault()
+            console.warn('[jarvis] WebGL context lost; awaiting restore')
+          },
+          false,
+        )
+        canvas.addEventListener('webglcontextrestored', () => {
+          console.info('[jarvis] WebGL context restored')
+        })
+      }}
     >
       <Rig />
       {/*

@@ -445,13 +445,30 @@ body::after {
   left: 50%;
   bottom: 52px;
   transform: translateX(-50%);
-  color: #ff6b6b;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* Amber, not blood-red: most of these are notices (a reconnect, a stand-down),
+     not failures. A true failure still reads clearly against the dark HUD. */
+  color: #e8b84b;
   font-size: 10px;
   text-transform: none;
   letter-spacing: 0.04em;
   max-width: 70vw;
   text-align: center;
 }
+.error-text { opacity: 0.9; }
+.error-x {
+  pointer-events: auto;
+  background: none;
+  border: 0;
+  padding: 0 2px;
+  color: inherit;
+  opacity: 0.55;
+  cursor: pointer;
+  font-size: 11px;
+}
+.error-x:hover { opacity: 1; }
 
 .hud-bottom {
   position: absolute;

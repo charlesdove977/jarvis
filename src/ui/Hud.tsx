@@ -160,6 +160,16 @@ export function Hud({ onStop }: { onStop: () => void }) {
   const gestures = useStore((s) => s.gestures)
   const looking = useStore((s) => s.looking)
   const ui = useStore((s) => s.ui)
+  const setError = useStore((s) => s.setError)
+
+  // Notices clear themselves after a few seconds. Most are informational — a
+  // reconnect, a stood-down mic — and a banner that never leaves reads as a
+  // stuck error. The user can also dismiss it with the x.
+  useEffect(() => {
+    if (!error) return
+    const t = setTimeout(() => setError(null), 7000)
+    return () => clearTimeout(t)
+  }, [error, setError])
   const muted = useStore((s) => s.muted)
   const setMuted = useStore((s) => s.setMuted)
   const queue = useStore((s) => s.queue)
@@ -487,7 +497,18 @@ export function Hud({ onStop }: { onStop: () => void }) {
 
       {ui.chrome.suggestions && <Suggestions />}
 
-      {error && <div className="error">{error}</div>}
+      {error && (
+        <div className="error">
+          <span className="error-text">{error}</span>
+          <button
+            className="error-x"
+            onClick={() => useStore.getState().setError(null)}
+            title="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <footer className="hud-bottom">
         <span className="hint">
