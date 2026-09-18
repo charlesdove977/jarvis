@@ -1,5 +1,28 @@
 # JARVIS — Known Issues (running record)
 
+## STATUS 2026-09-18 (this session)
+
+FIXED + pushed:
+- #1/#6/#14 Hearing you — local faster-whisper STT (proven on real audio + /stt HTTP). No cloud, no key.
+- #13/#15 Tool-happy + persona — voice prompt "tools are for tasks, not talk". Proven: "can you hear me?" -> "Yes, sir.", zero tools.
+- Push-to-talk — Space goes straight to listening, no greeting (was suppressed in strict mode).
+- Long speech — a live partial keeps the listen window open, no mid-sentence cutoff.
+- #5 Space/Esc/M no longer hijacked by a focused HUD button.
+- #9 WebGL context-loss recovery (no more black-out under GPU pressure).
+- #7 Queue coalesce + Escape re-plan (merge queued speech into one turn; Escape runs the accumulated queue together).
+- Notices amber + auto-dismiss + x (the reconnect "error" was permanent red).
+- Hand-control legend stays up the whole time hand mode is on.
+
+NEEDS your real-mic test to confirm: wake reliability (#3), queue coalesce feel (#7), long-speech (#1).
+
+HELD (decision needed):
+- #10 Remove right-side panel cards — conflicts with the "keep JARVIS panels/blades upstream" decision. Design pref, not a bug. Say the word and I strip them.
+- #13 Default model — still Opus 5; switch to Haiku 4.5 in SETTINGS for max speed (kept your config default rather than forcing it).
+- #4 NOISE STRICT interaction — left alone per your instruction.
+
+---
+
+
 Collected from live testing on 2026-09-18. Nothing here is fixed yet unless it
 says FIXED. The plan is to fix the open ones in one pass. Evidence is from
 Charles's screen recordings and screenshots plus code reading; file:line refs
