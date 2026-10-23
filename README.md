@@ -13,6 +13,8 @@ laptop only has to draw the interface. **ElevenLabs is an optional add-on** that
 gives JARVIS a much better voice and sharper hearing; without it he speaks and
 listens through the browser's own speech, and everything still works.
 
+Step-by-step guide and setup walkthrough: [Turn Claude Code into your own Jarvis](https://charlieautomates.com/free-resources/#claude-code-jarvis)
+
 ---
 
 ## Requirements
